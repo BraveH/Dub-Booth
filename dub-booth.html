@@ -300,6 +300,8 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
 }
 .toast-act { border: 0; background: transparent; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 4px; min-height: 32px; }
 .banner { margin-bottom: 16px; padding: 12px 14px; border-radius: 12px; background: var(--rec-soft); font-size: 14px; }
+.alert-box { padding: 12px 14px; border-radius: 12px; background: var(--rec-soft); font-size: 14px; }
+.log { margin: 0; max-height: 260px; overflow: auto; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font: 12px/1.45 var(--font-mono); white-space: pre-wrap; word-break: break-word; -webkit-user-select: text; user-select: text; }
 .file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (max-width: 380px) {
@@ -709,12 +711,28 @@ body.sheet-open { overflow: hidden; }
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
             </button>
           </div>
+          <label class="field"><span>Speech model</span>
+            <select id="asrSize">
+              <option value="standard">Standard: more accurate, needs more memory</option>
+              <option value="light">Light: less accurate, needs less memory</option>
+            </select>
+          </label>
           <div class="row">
             <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
             <button class="btn small" type="button" id="bAsrOne">This cue only</button>
             <button class="link-btn" type="button" id="bAsrStop" hidden>Stop</button>
           </div>
           <progress id="asrBar" max="1" value="0" hidden></progress>
+          <p class="alert-box" id="asrCrash" role="status" hidden></p>
+          <details class="more" id="asrLogBox" hidden>
+            <summary>Transcription log</summary>
+            <p class="hint">What happened in recent runs, step by step, with how much memory the speech runtime used. It's kept even if the page closes mid-run.</p>
+            <pre class="log" id="asrLogText"></pre>
+            <div class="row">
+              <button class="btn small" type="button" id="bAsrLogCopy">Copy the log</button>
+              <button class="link-btn" type="button" id="bAsrLogClear">Clear it</button>
+            </div>
+          </details>
           <label class="check"><input type="checkbox" id="rhythmo"> Show the rhythmo band: the line’s words scroll past a red mark as they should be spoken</label>
         </div>
         <div class="group-box">
@@ -872,6 +890,7 @@ body.sheet-open { overflow: hidden; }
             <button class="btn" type="button" id="bBakShare" hidden>Share or save to Files</button>
           </div>
           <p class="hint" id="storageNote" hidden></p>
+          <p class="hint" id="appVersion"></p>
           <button class="btn" type="button" id="bUnused">Delete takes that no dub uses</button>
           <button class="btn" type="button" id="bClear">Delete all takes</button>
           <div class="confirm" id="clearConfirm" hidden>
@@ -1262,6 +1281,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const FORCE_LEGACY = /[?&]legacy=1\b/.test(location.search);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
+  // Shown in Settings and in the transcription log, to tell which copy of the app is running.
+  const APP_VERSION = '2026.11.02-6';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -1270,7 +1291,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en',
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'standard',
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -1971,20 +1992,35 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   }
 
   // ---------- originals & takes ----------
+  async function decodeOriginal(key) {
+    let ab = S.mem.get(key);
+    if (!ab) ab = await store.get('originals', key);
+    if (ab && typeof Blob !== 'undefined' && ab instanceof Blob) ab = await ab.arrayBuffer();
+    if (!ab) throw new Error('This original isn’t available any more. Load your files again.');
+    try { return await decode(ab.slice(0)); } catch (e) { throw new Error('This file couldn’t be decoded as audio.'); }
+  }
+  // Decoded originals are kept for quick moves between cues, up to a memory budget rather than a count:
+  // decoded audio is large (a minute of stereo at 48 kHz is 23 MB). The cue on screen always stays.
+  const origBudget = () => (appleMobile() ? 48 : 192) * 1048576;
+  const origBytes = () => { let n = 0; for (const g of S.orig.values()) n += g.bytes || 0; return n; };
+  function trimOrig() {
+    let total = origBytes();
+    for (const k of [...S.orig.keys()]) {
+      if (total <= origBudget() || S.orig.size <= 1) break;
+      if (k === CUR.key) continue;
+      total -= S.orig.get(k).bytes || 0;
+      S.orig.delete(k);
+    }
+  }
   async function getOriginal(key) {
     const hit = S.orig.get(key);
     if (hit) { S.orig.delete(key); S.orig.set(key, hit); return hit; }
     if (S.origPending.has(key)) return S.origPending.get(key);
     const p = (async () => {
-      let ab = S.mem.get(key);
-      if (!ab) ab = await store.get('originals', key);
-      if (ab && typeof Blob !== 'undefined' && ab instanceof Blob) ab = await ab.arrayBuffer();
-      if (!ab) throw new Error('This original isn’t available any more. Load your files again.');
-      let buffer;
-      try { buffer = await decode(ab.slice(0)); } catch (e) { throw new Error('This file couldn’t be decoded as audio.'); }
-      const g = { buffer, env: envOf(monoOf(buffer), buffer.sampleRate), dur: buffer.duration };
+      const buffer = await decodeOriginal(key);
+      const g = { buffer, env: envOf(monoOf(buffer), buffer.sampleRate), dur: buffer.duration, bytes: buffer.length * buffer.numberOfChannels * 4 };
       S.orig.set(key, g);
-      while (S.orig.size > 8) S.orig.delete(S.orig.keys().next().value);
+      trimOrig();
       return g;
     })();
     S.origPending.set(key, p);
@@ -3549,8 +3585,9 @@ registerProcessor('dub-tap', DubTap);
         : 'No lines yet. Import a script, paste lines, transcribe the originals, or type each cue’s line in the list below.';
     $('rhythmo').checked = S.settings.rhythmo;
     renderAsrLang();
+    $('asrSize').value = S.settings.asrSize === 'light' ? 'light' : 'standard';
     $('charFolders').checked = S.settings.charFolders;
-    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang']) $(id).disabled = !n || !!A.asr;
+    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang', 'asrSize']) $(id).disabled = !n || !!A.asr;
     const left = asrLeft().length;
     $('bAsr').textContent = !n || left === n ? 'Transcribe all cues' : left ? `Transcribe the other ${left} cue${left === 1 ? '' : 's'}` : 'Transcribe all cues again';
   }
@@ -3659,8 +3696,9 @@ registerProcessor('dub-tap', DubTap);
   // This is the library's self-contained build. Its "web" build leaves two of its own imports for
   // a bundler to fill in, so no browser can load it as it is.
   const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
-  // The larger model first. A device that can't load it gets the smaller one, in a fresh worker.
-  const ASR_MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
+  // Standard: the larger model first; a device that can't load it gets the smaller one, in a fresh
+  // worker. Light: only the smaller one, for devices short of memory.
+  const asrModels = () => (S.settings.asrSize === 'light' ? ['Xenova/whisper-tiny'] : ['Xenova/whisper-base', 'Xenova/whisper-tiny']);
   // The languages these Whisper models know, by the codes they take. The library can't tell which
   // one is spoken (it would assume English), so the person picks it.
   const ASR_LANGS = {
@@ -3843,7 +3881,7 @@ async function load() {
   try {
     asr = await pipeline('automatic-speech-recognition', MODEL, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, loaded: p.loaded, total: p.total } }) });
   } catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { stage: 'model' }); }
-  self.postMessage({ type: 'ready', model: MODEL });
+  self.postMessage({ type: 'ready', model: MODEL, heap: heap ? heap.buffer.byteLength : 0 });
 }
 self.onmessage = async (e) => {
   const m = e.data;
@@ -3863,16 +3901,19 @@ self.onmessage = async (e) => {
   // On an iPhone, a long run grew until iOS closed the page, so a fresh worker takes over every few
   // cues, or sooner if the memory grows large. The model comes back from the browser's cache.
   const ASR_PER_WORKER = appleMobile() ? 3 : 10, ASR_HEAP_LIMIT = 600 * 1048576;
-  let asrW = null, asrSeq = 0, asrModel = 0, asrUses = 0, asrWarm = false;
+  let asrW = null, asrSeq = 0, asrModel = 0, asrUses = 0, asrWarm = false, asrWorkers = 0;
   const asrWait = new Map();
   const asrErr = (message, stage) => Object.assign(new Error(message), { stage });
   function asrFail(err) { for (const w of asrWait.values()) w.rej(err); asrWait.clear(); }
   function asrStop() { if (asrW) { try { asrW.terminate(); } catch (_) { /* already gone */ } asrW = null; } }
   function asrWorker() {
     if (asrW) return asrW;
-    const src = asrSource(ASR_MODELS[asrModel], appleMobile() ? 16384 : 0);
+    const model = asrModels()[Math.min(asrModel, asrModels().length - 1)];
+    const src = asrSource(model, appleMobile() ? 16384 : 0);
     const w = asrW = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
     asrUses = 0;
+    const no = ++asrWorkers, t0 = performance.now();
+    asrLog(`speech worker ${no} starting: ${model.split('/')[1]}`);
     const files = new Map(); // file -> [bytes loaded, bytes in all]
     w.onmessage = (e) => {
       const d = e.data;
@@ -3887,7 +3928,12 @@ self.onmessage = async (e) => {
         $('asrText').textContent = got < all ? `Loading the speech model: ${Math.round(got / 1048576)} of ${Math.round(all / 1048576)} MB` : 'Starting the speech model…';
         return;
       }
-      if (d.type === 'ready') { if (!asrWarm) $('asrText').textContent = 'Speech model ready. Transcribing…'; asrWarm = true; return; }
+      if (d.type === 'ready') {
+        asrLog(`speech worker ${no} ready in ${((performance.now() - t0) / 1000).toFixed(1)} s, runtime memory ${MB(d.heap)}`);
+        if (!asrWarm) $('asrText').textContent = 'Speech model ready. Transcribing…';
+        asrWarm = true;
+        return;
+      }
       const job = asrWait.get(d.id);
       if (!job) return;
       asrWait.delete(d.id);
@@ -3896,6 +3942,7 @@ self.onmessage = async (e) => {
     // Only fires if the worker itself can't run; problems inside it arrive as messages.
     w.onerror = (e) => {
       if (e && e.preventDefault) e.preventDefault();
+      asrLog(`speech worker ${no} failed: ${(e && e.message) || 'no message'}`);
       if (asrW === w) asrStop();
       asrFail(asrErr((e && e.message) || 'the speech worker stopped', 'worker'));
     };
@@ -3931,6 +3978,76 @@ self.onmessage = async (e) => {
     }
     return words;
   }
+  // ---------- the transcription log ----------
+  // Written to this browser's local storage line by line as a run goes, so it outlives the page if iOS
+  // closes it mid-run (when memory runs out, say). The Script page shows it, with a button to copy it.
+  // A marker for the cue in progress is kept too: if it's still there when the page opens, the last
+  // run never finished, and the page says so.
+  const LOG_KEY = 'dub-booth-asr-log', RUN_KEY = 'dub-booth-asr-run';
+  let asrCrash = null;
+  const MB = (b) => `${Math.round((b || 0) / 1048576)} MB`;
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+  function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (_) { /* full or blocked */ } }
+  function asrLogLines() { try { const a = JSON.parse(lsGet(LOG_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } }
+  function asrLog(line) {
+    const t = new Date(), p2 = (x) => String(x).padStart(2, '0');
+    const lines = asrLogLines();
+    lines.push(`${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())} ${line}`);
+    lsSet(LOG_KEY, JSON.stringify(lines.slice(-400)));
+    renderAsrLog();
+  }
+  function asrMark(state) { lsSet(RUN_KEY, state ? JSON.stringify(state) : null); }
+  function deviceLine() {
+    const ua = navigator.userAgent, m = ua.match(/\(([^)]+)\)/), home = navigator.standalone === true || !!(window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    return `${m ? m[1] : ua}${home ? ', Home Screen app' : ''}, ${screen.width}×${screen.height} @${window.devicePixelRatio || 1}x`;
+  }
+  function renderAsrLog() {
+    const lines = asrLogLines();
+    $('asrLogBox').hidden = !lines.length;
+    if ($('asrLogBox').open) { const pre = $('asrLogText'); pre.textContent = lines.join('\n'); pre.scrollTop = pre.scrollHeight; }
+  }
+  function renderAsrCrash() {
+    const el = $('asrCrash');
+    el.hidden = !asrCrash;
+    if (!asrCrash) return;
+    el.textContent = `The last transcription didn’t finish: the page ${asrCrash.closed ? 'was closed' : 'stopped'} while ${asrCrash.cue || 'a cue'} was being transcribed${asrCrash.hidden && !asrCrash.closed ? ', with Dub Booth in the background' : ''}. ` +
+      (asrCrash.closed ? 'Carry on with the button above.' : 'On an iPhone this usually means it ran out of memory. Carry on with the button above; if it happens again, choose the light speech model. The log below shows how far it got.');
+  }
+  // When the page opens: did the last run end, or was the page closed under it?
+  function checkAsrRun() {
+    const raw = lsGet(RUN_KEY);
+    if (asrLogLines().length) asrLog(`page opened, version ${APP_VERSION}`);
+    if (!raw) return;
+    asrMark(null);
+    let r = {};
+    try { r = JSON.parse(raw) || {}; } catch (_) { r = {}; }
+    asrCrash = r;
+    asrLog(`— the last run never finished: the page ${r.closed ? 'was closed' : 'stopped'} during ${r.cue || 'a cue'}${r.hidden && !r.closed ? ' (in the background)' : ''}`);
+    renderAsrCrash();
+    $('asrLogBox').open = !r.closed;
+    renderAsrLog();
+  }
+  async function copyAsrLog() {
+    const text = asrLogLines().join('\n');
+    try { await navigator.clipboard.writeText(text); toast('Log copied.'); return; } catch (_) { /* fall back below */ }
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.append(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    ta.remove();
+    toast(ok ? 'Log copied.' : 'Copying didn’t work here. Select the log and copy it.');
+  }
+
+  // 16 kHz mono for the recognizer. Uses the decoded original if it's kept already; otherwise decodes it
+  // just for this and lets it go, so a long run doesn't pile decoded audio up in memory.
+  async function asrAudio(key) {
+    const kept = S.orig.get(key), buffer = kept ? kept.buffer : await decodeOriginal(key);
+    const mono = monoOf(buffer);
+    let audio = resample(mono, buffer.sampleRate, 16000);
+    if (audio === mono || audio.byteLength !== audio.buffer.byteLength) audio = new Float32Array(audio); // its own buffer, to hand over
+    return { audio, dur: buffer.duration, sr: buffer.sampleRate, ch: buffer.numberOfChannels };
+  }
   async function transcribe(keys) {
     if (A.asr || !keys.length) return;
     A.asr = { stop: false };
@@ -3938,30 +4055,45 @@ self.onmessage = async (e) => {
     $('asrBar').hidden = false;
     $('asrBar').value = 0;
     renderScript();
-    let done = 0, failed = null;
+    let done = 0, failed = null, cool = false;
     const lang = asrLang(), langName = ASR_LANGS[lang];
     asrWarm = false;
+    asrCrash = null;
+    renderAsrCrash();
+    asrLog(`— transcribing ${keys.length} cue${keys.length === 1 ? '' : 's'} in ${langName}, ${S.settings.asrSize === 'light' ? 'light' : 'standard'} model · ${deviceLine()} · version ${APP_VERSION}`);
+    wakeLock(); // a long run shouldn't be cut short by the screen locking
     for (const key of keys) {
       if (A.asr.stop) break;
-      if (done) await new Promise((r) => setTimeout(r, 30)); // a breath between cues
+      // A breath between cues; longer after a worker closes, so its memory is gone before the next starts.
+      if (done) await new Promise((r) => setTimeout(r, cool ? 800 : 30));
+      cool = false;
       $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}, in ${langName}…`;
+      const label = `cue ${pad3(S.keys.indexOf(key) + 1)} (${key})`;
       try {
-        const g = await getOriginal(key);
-        const a16 = new Float32Array(resample(monoOf(g.buffer), g.buffer.sampleRate, 16000));
-        let out;
+        asrMark({ cue: label, at: Date.now(), worker: asrWorkers + (asrW ? 0 : 1), uses: asrW ? asrUses : 0 });
+        let src = await asrAudio(key), out;
+        asrLog(`${label}: ${src.dur.toFixed(1)} s of audio (${src.sr / 1000} kHz, ${src.ch} ch), decoded audio kept ${MB(origBytes())}`);
+        const t0 = performance.now();
         for (;;) {
-          try { out = await asrRun(a16.slice(), lang); break; } catch (e) {
+          try { out = await asrRun(src.audio, lang); break; } catch (e) {
+            asrLog(`${label}: ${e.stage || 'error'}: ${e.message}`);
             // A model that won't load, or runs out of memory, makes way for the next one.
             const load = e.stage === 'model' || e.stage === 'worker' || (e.stage === 'run' && /memory|alloc|RangeError/i.test(e.message));
-            if (A.asr.stop || !load || asrModel >= ASR_MODELS.length - 1) throw e;
+            if (A.asr.stop || !load || asrModel >= asrModels().length - 1) throw e;
             asrStop();
             asrModel++;
             asrWarm = false;
             $('asrText').textContent = 'Trying a smaller speech model…';
+            src = await asrAudio(key); // the last copy went to the worker that failed
           }
         }
         if (A.asr.stop) break;
-        if (++asrUses >= ASR_PER_WORKER || (out.heap || 0) > ASR_HEAP_LIMIT) asrStop();
+        asrLog(`${label}: done in ${((performance.now() - t0) / 1000).toFixed(1)} s, ${String(out.text || '').trim().length} characters, runtime memory ${MB(out.heap)}`);
+        if (++asrUses >= ASR_PER_WORKER || (out.heap || 0) > ASR_HEAP_LIMIT) {
+          asrLog(`speech worker ${asrWorkers} closed after ${asrUses} cue${asrUses === 1 ? '' : 's'}`);
+          asrStop();
+          cool = true;
+        }
         const inf = cueInfo(key), before = inf.asrText;
         inf.words = wordsOf(out);
         inf.asrText = String(out.text || '').trim();
@@ -3972,13 +4104,16 @@ self.onmessage = async (e) => {
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
-      } catch (e) { if (!A.asr.stop) failed = e; break; }
+      } catch (e) { if (!A.asr.stop) { failed = e; asrLog(`${label}: stopped by ${e.stage || 'an error'}: ${e.message}`); } break; }
     }
     const stopped = A.asr.stop;
     A.asr = null;
+    asrMark(null);
+    asrLog(failed ? `— ended with an error after ${done} cue${done === 1 ? '' : 's'}` : `— ${stopped ? 'stopped' : 'finished'} after ${done} cue${done === 1 ? '' : 's'}`);
+    if (wl && !A.stream) { wl.release().catch(() => {}); wl = null; }
     // A loaded model holds a few hundred MB; let it go so recording keeps the memory it needs.
     asrStop();
-    if (failed && asrModel === ASR_MODELS.length - 1 && failed.stage !== 'run') asrModel = 0; // nothing loaded: start over next time
+    if (failed && asrModel === asrModels().length - 1 && failed.stage !== 'run') asrModel = 0; // nothing loaded: start over next time
     $('bAsrStop').hidden = true;
     $('asrBar').hidden = true;
     afterScriptChange();
@@ -4897,6 +5032,11 @@ self.onmessage = async (e) => {
   }
   function bindUI() {
     buildLangs();
+    $('asrSize').addEventListener('change', (e) => { S.settings.asrSize = e.target.value; asrModel = 0; saveMeta(true); });
+    $('asrLogBox').addEventListener('toggle', renderAsrLog);
+    $('bAsrLogCopy').addEventListener('click', copyAsrLog);
+    $('bAsrLogClear').addEventListener('click', () => { lsSet(LOG_KEY, null); asrCrash = null; renderAsrCrash(); renderAsrLog(); });
+    $('appVersion').textContent = `Dub Booth version ${APP_VERSION}`;
     $('asrLang').addEventListener('click', openLangPicker);
     $('bLangClose').addEventListener('click', closeLangPicker);
     $('langSearch').addEventListener('input', () => renderLangList());
@@ -5133,6 +5273,11 @@ self.onmessage = async (e) => {
       else if (k === '0') setView(0, CUR.total);
     });
     document.addEventListener('visibilitychange', () => {
+      if (A.asr) {
+        asrLog(document.hidden ? 'Dub Booth went to the background' : 'Dub Booth came back');
+        const r = lsGet(RUN_KEY);
+        if (r) { try { asrMark({ ...JSON.parse(r), hidden: document.hidden }); } catch (_) { /* leave it */ } }
+      }
       if (document.hidden) {
         flushMeta(); flushSaves(); flushInfo();
         A.looping = false;
@@ -5140,7 +5285,14 @@ self.onmessage = async (e) => {
         stopPlayback();
       } else if (A.stream) wakeLock();
     });
-    window.addEventListener('pagehide', () => { flushMeta(); flushSaves(); flushInfo(); });
+    window.addEventListener('pagehide', () => {
+      flushMeta(); flushSaves(); flushInfo();
+      if (A.asr) {
+        asrLog('page closing during the run');
+        const r = lsGet(RUN_KEY);
+        if (r) { try { asrMark({ ...JSON.parse(r), closed: true }); } catch (_) { /* leave it */ } }
+      }
+    });
     const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if (mq) { const f = () => { readTokens(); drawLanes(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
     let rt = 0;
@@ -5187,6 +5339,7 @@ self.onmessage = async (e) => {
     const inf = await store.get('meta', 'info');
     if (inf && typeof inf === 'object') for (const k of Object.keys(inf)) if (inf[k] && typeof inf[k] === 'object') S.info.set(k, inf[k]);
     applySettingsToUI();
+    checkAsrRun();
     try { await cleanupAudio(); } catch (e) { console.warn('cleanup', e); }
     if (meta && Array.isArray(meta.keys) && meta.keys.length) {
       S.keys = meta.keys;
