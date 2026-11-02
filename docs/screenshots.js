@@ -120,9 +120,11 @@ function serve() {
 
   // ---- export, after building the zip
   await tab('export');
+  await page.check('#roomTone');
+  await page.check('#padToOrig');
   await page.click('#bExport');
   await page.waitForSelector('#expReady:not([hidden])', { timeout: 60000 });
-  await scrollTo('#vExport .group-box:nth-of-type(3)', 80);
+  await scrollTo('#vExport .view-head', 0);
   await shot('export.png');
 
   // ---- settings: recording

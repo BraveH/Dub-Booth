@@ -775,6 +775,7 @@ body.sheet-open { overflow: hidden; }
           <label class="check"><input type="checkbox" id="denoise"> Reduce steady background noise, like hiss or hum</label>
           <label class="check"><input type="checkbox" id="toneMatch"> Match each original’s tone with an automatic EQ</label>
           <label class="check"><input type="checkbox" id="roomTone"> Fill the gaps between clips with your room’s own quiet sound</label>
+          <label class="check"><input type="checkbox" id="padToOrig"> Make each dub as long as its original, filling the end with your room’s own quiet sound</label>
           <label class="field"><span>Volume</span>
             <select id="vol">
               <option value="match">Match each original’s loudness</option>
@@ -826,6 +827,7 @@ body.sheet-open { overflow: hidden; }
           </label>
           <p class="hint">{name} is the original’s name, {cue} its number and {character} who says it. Leave it as {name} to keep the same names.</p>
           <label class="check"><input type="checkbox" id="trim"> Trim silence from the start and end of each dub</label>
+          <p class="hint" id="trimNote" hidden>Trimming is off while each dub is made as long as its original.</p>
           <label class="check"><input type="checkbox" id="charFolders"> Put each character’s files in a folder named after them</label>
           <label class="check"><input type="checkbox" id="alternates"> Also export every take on its own, in an alternates folder</label>
           <label class="check"><input type="checkbox" id="cueSheet"> Include a cue sheet (CSV) with lines, characters, marks and notes</label>
@@ -1309,7 +1311,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
   // Shown in Settings and in the transcription log, to tell which copy of the app is running.
-  const APP_VERSION = '2026.11.02-10';
+  const APP_VERSION = '2026.11.02-11';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -1318,7 +1320,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'auto', micNoise: false, playVol: 1,
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'auto', micNoise: false, playVol: 1, padToOrig: false,
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -1611,12 +1613,10 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const rendered = await oc.startRendering();
     return new Float32Array(rendered.getChannelData(0));
   }
-  // Fills silent gaps between clips with room tone: the quietest stretch of the takes' lead-in.
-  async function roomToneFill(key, cue, x, sr) {
-    const clips = cue.clips.slice().sort((a, b) => clipStart(a) - clipStart(b));
-    if (!clips.length || !x.length) return x;
+  // Room tone: the quietest quarter second of the takes' lead-ins (before you start speaking).
+  async function roomToneOf(key, cue, sr) {
     let tone = null, best = Infinity;
-    for (const c of clips) {
+    for (const c of cue.clips) {
       const t = takeById(cue, c.take);
       if (!t || t.sr !== sr) continue;
       const a = await getPcm(key, t);
@@ -1628,6 +1628,13 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         if (e < best && e > 0) { best = e; tone = Float32Array.from(a.subarray(o, o + win), (v) => v / 32768); }
       }
     }
+    return tone;
+  }
+  // Fills silent gaps between clips with room tone.
+  async function roomToneFill(key, cue, x, sr) {
+    const clips = cue.clips.slice().sort((a, b) => clipStart(a) - clipStart(b));
+    if (!clips.length || !x.length) return x;
+    const tone = await roomToneOf(key, cue, sr);
     if (!tone) return x;
     const out = new Float32Array(x), gaps = [], fade = Math.round(0.015 * sr);
     let t = 0;
@@ -1641,10 +1648,41 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     }
     return out;
   }
-  // The dub as it plays and exports: gaps filled, noise reduced, tone matched (each when switched on).
+  // Makes the dub as long as its original: the time after the last clip is filled with room tone (or
+  // silence, if no take has a quiet lead-in). The dub already starts where the original does. Copies of
+  // the room tone overlap with smooth windows, each from a different point in it, so it doesn't loop
+  // audibly. A dub longer than its original is left as it is.
+  async function padToOriginal(key, cue, x, sr) {
+    let dur = 0;
+    try { dur = (await getOriginal(key)).dur; } catch (_) { return x; }
+    const n = Math.round(dur * sr);
+    if (n <= x.length) return x;
+    const out = new Float32Array(n);
+    out.set(x);
+    const tone = await roomToneOf(key, cue, sr);
+    if (!tone || tone.length < 64) return out;
+    const L = tone.length, hop = L >> 1, from = x.length, fade = Math.round(0.015 * sr);
+    for (let p = from - hop, k = 0; p < n; p += hop, k++) {
+      const shift = (k * 7919) % L;
+      for (let i = 0; i < L; i++) {
+        const j = p + i;
+        if (j < from || j >= n) continue;
+        out[j] += tone[(i + shift) % L] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / L)); // periodic Hann: halves overlap to 1
+      }
+    }
+    for (let i = 0; i < fade && from + i < n; i++) out[from + i] *= i / fade;
+    return out;
+  }
+  function renderTrimNote() {
+    $('trim').disabled = !!S.settings.padToOrig;
+    $('trimNote').hidden = !S.settings.padToOrig;
+  }
+  // The dub as it plays and exports: gaps filled, made as long as the original, noise reduced, tone
+  // matched (each when switched on).
   async function processDub(key, cue, x, sr) {
     const st = S.settings;
     if (st.roomTone) x = await roomToneFill(key, cue, x, sr);
+    if (st.padToOrig) x = await padToOriginal(key, cue, x, sr);
     if (st.denoise) x = denoise(x, sr);
     if (st.toneMatch) { try { x = await toneEq(x, sr, await getOriginal(key)); } catch (e) { console.warn('tone match', e); } }
     return x;
@@ -1994,7 +2032,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   // Encodes dub audio like its original (or as the custom MP3, or as WAV).
   async function encodeAudio(key, f, fsr, lame) {
     const st = S.settings;
-    if (st.trim) f = trimSilence(f, fsr);
+    if (st.trim && !st.padToOrig) f = trimSilence(f, fsr); // trimming would undo the matched length
     const pr = st.fmt !== 'custom' ? await probeOriginal(key) : null;
     const known = !!(pr && pr.ok);
     if (st.fmt === 'wav' || !lame) {
@@ -2818,7 +2856,7 @@ registerProcessor('dub-tap', DubTap);
     A.srcs = [];
     if (A.play) { A.play = null; renderPlayState(); drawLanes(); }
   }
-  const compSig = (key, cue) => { const st = S.settings; return `${key}|${JSON.stringify(cue.clips)}|${st.vol}|${CUR.guide ? 1 : 0}|${st.denoise}|${st.toneMatch}|${st.roomTone}`; };
+  const compSig = (key, cue) => { const st = S.settings; return `${key}|${JSON.stringify(cue.clips)}|${st.vol}|${CUR.guide ? 1 : 0}|${st.denoise}|${st.toneMatch}|${st.roomTone}|${st.padToOrig}`; };
   async function compBuffer(key, cue) {
     const sig = compSig(key, cue);
     if (CUR.compBuf && CUR.compSig === sig) return CUR.compBuf;
@@ -5227,6 +5265,8 @@ self.onmessage = async (e) => {
     $('mediaKeys').checked = s.mediaKeys;
     renderKeys();
     $('trim').checked = s.trim;
+    $('padToOrig').checked = !!s.padToOrig;
+    renderTrimNote();
     renderFormatFields();
   }
   function renderFormatFields() {
@@ -5434,6 +5474,7 @@ self.onmessage = async (e) => {
     $('vol').addEventListener('change', (e) => { S.settings.vol = e.target.value; CUR.compBuf = null; saveMeta(true); });
     $('namePat').addEventListener('input', (e) => { S.settings.namePat = e.target.value; saveMeta(true); });
     for (const id of ['denoise', 'toneMatch', 'roomTone']) bindCheck(id, id, () => { CUR.compBuf = null; });
+    bindCheck('padToOrig', 'padToOrig', () => { CUR.compBuf = null; renderTrimNote(); });
     bindCheck('alternates', 'alternates');
     bindCheck('cueSheet', 'cueSheet');
     bindCheck('mediaKeys', 'mediaKeys', setupMediaKeys);
