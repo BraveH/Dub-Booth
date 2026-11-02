@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" width="960" height="520" role="img" aria-labelledby="t d">
+  <title id="t">Takes and your dub</title>
+  <desc id="d">The original on top, three takes below it, and your dub at the bottom, built from a stretch of take 2, a punch-in from take 3 over the selected part, and take 2 again.</desc>
+  <style>
+    .f { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .h { font-weight: 700; font-size: 20px; fill: #121821; }
+    .sub { font-size: 14px; fill: #566173; }
+    .lab { font-weight: 700; font-size: 12px; letter-spacing: 0.08em; fill: #566173; }
+    .note { font-size: 13px; fill: #121821; }
+    .small { font-size: 12px; fill: #566173; }
+    .lane { fill: #e2e7ec; }
+    .tick { font: 11px ui-monospace, Menlo, Consolas, monospace; fill: #566173; }
+  </style>
+  <rect x="0" y="0" width="960" height="520" rx="18" fill="#ffffff" stroke="#d2d9e1"/>
+  <text class="f h" x="28" y="42">Takes and your dub</text>
+  <text class="f sub" x="28" y="64">Every recording is kept as a take. Your dub is made of clips: stretches of takes placed on the cue’s timeline.</text>
+
+  <!-- selection on the original -->
+  <rect x="452" y="84" width="170" height="350" fill="#b25d05" opacity="0.10"/>
+  <line x1="452" y1="84" x2="452" y2="434" stroke="#b25d05" stroke-width="2"/>
+  <line x1="622" y1="84" x2="622" y2="434" stroke="#b25d05" stroke-width="2"/>
+  <text class="f small" x="537" y="100" text-anchor="middle" font-weight="700" fill="#b25d05">selection</text>
+
+  <!-- original -->
+  <text class="f lab" x="28" y="142">ORIGINAL</text>
+  <rect class="lane" x="150" y="108" width="760" height="62" rx="10"/>
+  <g fill="#22708f">
+    <rect x="175" y="126" width="5" height="26" rx="2"/><rect x="190" y="118" width="5" height="42" rx="2"/><rect x="205" y="123" width="5" height="32" rx="2"/><rect x="220" y="114" width="5" height="50" rx="2"/><rect x="235" y="122" width="5" height="34" rx="2"/><rect x="250" y="128" width="5" height="22" rx="2"/>
+    <rect x="290" y="120" width="5" height="38" rx="2"/><rect x="305" y="114" width="5" height="50" rx="2"/><rect x="320" y="124" width="5" height="30" rx="2"/><rect x="335" y="117" width="5" height="44" rx="2"/><rect x="350" y="126" width="5" height="26" rx="2"/><rect x="365" y="121" width="5" height="36" rx="2"/><rect x="380" y="130" width="5" height="18" rx="2"/>
+    <rect x="470" y="118" width="5" height="42" rx="2"/><rect x="485" y="124" width="5" height="30" rx="2"/><rect x="500" y="114" width="5" height="50" rx="2"/><rect x="515" y="120" width="5" height="38" rx="2"/><rect x="530" y="126" width="5" height="26" rx="2"/><rect x="545" y="117" width="5" height="44" rx="2"/><rect x="560" y="123" width="5" height="32" rx="2"/><rect x="575" y="129" width="5" height="20" rx="2"/><rect x="590" y="121" width="5" height="36" rx="2"/>
+    <rect x="660" y="122" width="5" height="34" rx="2"/><rect x="675" y="116" width="5" height="46" rx="2"/><rect x="690" y="125" width="5" height="28" rx="2"/><rect x="705" y="118" width="5" height="42" rx="2"/><rect x="720" y="127" width="5" height="24" rx="2"/><rect x="735" y="120" width="5" height="38" rx="2"/><rect x="750" y="126" width="5" height="26" rx="2"/><rect x="765" y="131" width="5" height="16" rx="2"/>
+  </g>
+
+  <!-- takes -->
+  <text class="f lab" x="28" y="208">TAKE 1</text>
+  <rect class="lane" x="150" y="186" width="760" height="36" rx="8"/>
+  <rect x="168" y="192" width="560" height="24" rx="5" fill="#b25d05" opacity="0.35"/>
+  <text class="f small" x="736" y="209">too slow</text>
+
+  <text class="f lab" x="28" y="258">TAKE 2</text>
+  <rect class="lane" x="150" y="236" width="760" height="36" rx="8"/>
+  <rect x="172" y="242" width="610" height="24" rx="5" fill="#b25d05" opacity="0.55"/>
+  <text class="f small" x="790" y="259">good, but</text>
+  <text class="f small" x="790" y="273">one slip</text>
+
+  <text class="f lab" x="28" y="308">TAKE 3</text>
+  <rect class="lane" x="150" y="286" width="760" height="36" rx="8"/>
+  <rect x="380" y="292" width="72" height="24" rx="5" fill="#b25d05" opacity="0.18"/>
+  <rect x="452" y="292" width="170" height="24" rx="5" fill="#b25d05" opacity="0.8"/>
+  <text class="f small" x="372" y="304" text-anchor="end">pre-roll:</text>
+  <text class="f small" x="440" y="340" text-anchor="end">the original starts early so you come in on time</text>
+
+  <!-- dub -->
+  <text class="f lab" x="28" y="398">YOUR DUB</text>
+  <rect class="lane" x="150" y="366" width="760" height="58" rx="10"/>
+  <rect x="172" y="374" width="280" height="42" rx="6" fill="#b25d05"/>
+  <rect x="452" y="374" width="170" height="42" rx="6" fill="#c97a22"/>
+  <rect x="622" y="374" width="160" height="42" rx="6" fill="#b25d05"/>
+  <text class="f" x="186" y="400" font-size="14" font-weight="700" fill="#ffffff">from take 2</text>
+  <text class="f" x="466" y="400" font-size="14" font-weight="700" fill="#ffffff">from take 3</text>
+  <text class="f" x="636" y="400" font-size="14" font-weight="700" fill="#ffffff">from take 2</text>
+  <path d="M452 368 v52 M622 368 v52" stroke="#ffffff" stroke-width="2" stroke-dasharray="3 3"/>
+
+  <!-- ruler -->
+  <g class="tick">
+    <text x="150" y="450">0s</text><text x="302" y="450">1s</text><text x="454" y="450">2s</text><text x="606" y="450">3s</text><text x="758" y="450">4s</text>
+  </g>
+
+  <!-- notes -->
+  <g class="f note">
+    <circle cx="36" cy="482" r="4" fill="#b25d05"/><text x="48" y="487">Drag across the original, then record: the new take only replaces that part (a punch-in).</text>
+    <circle cx="36" cy="505" r="4" fill="#b25d05"/><text x="48" y="510">Tap a take to use part of it. Drag a clip to move it, its edges to trim it. Clips meet with a 10 ms crossfade.</text>
+  </g>
+</svg>
