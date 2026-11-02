@@ -165,6 +165,12 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .sw.take { background: var(--take); }
 .lane-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: var(--muted); pointer-events: none; }
 .ruler { display: block; width: 100%; height: 18px; }
+.take-lane { cursor: grab; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.take-lane.dragging { cursor: grabbing; box-shadow: inset 0 0 0 2px var(--take); }
+.grip { width: 14px; height: 14px; fill: var(--take); margin-left: 2px; }
+.sync-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-top: -6px; }
+.sync-text { text-align: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 8px; }
+.link-btn { border: 0; background: transparent; color: var(--ink); font-weight: 600; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px 4px; min-height: 32px; }
 .countdown {
   position: absolute; left: 0; right: 0; top: 0; bottom: 24px; z-index: 2;
   display: flex; align-items: center; justify-content: center;
@@ -312,13 +318,18 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
             <span class="lane-lbl"><i class="sw guide"></i>Original <b id="durGuide"></b></span>
             <canvas id="cvGuide" aria-label="Waveform of the original"></canvas>
           </div>
-          <div class="lane">
-            <span class="lane-lbl"><i class="sw take"></i>Your take <b id="durTake"></b></span>
-            <canvas id="cvTake" aria-label="Waveform of your take"></canvas>
+          <div class="lane take-lane" id="takeLane">
+            <span class="lane-lbl"><i class="sw take"></i>Your take <b id="durTake"></b><svg class="grip" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7 2 12l5 5v-4h10v4l5-5-5-5v4H7z"/></svg></span>
+            <canvas id="cvTake" aria-label="Waveform of your take. Drag it left or right to line it up with the original."></canvas>
             <span class="lane-empty" id="takeEmpty">No take yet</span>
           </div>
           <canvas class="ruler" id="cvRuler" aria-hidden="true"></canvas>
           <div class="countdown" id="countdown" aria-live="assertive" hidden>3</div>
+        </div>
+        <div class="sync-row" id="syncRow" hidden>
+          <button class="btn small" type="button" id="bNudgeL" aria-label="Move this take 10 milliseconds earlier">‹ 10 ms</button>
+          <p class="sync-text"><span id="syncText" aria-live="polite"></span><button class="link-btn" type="button" id="bSyncReset" hidden>Reset</button></p>
+          <button class="btn small" type="button" id="bNudgeR" aria-label="Move this take 10 milliseconds later">10 ms ›</button>
         </div>
 
         <div class="mode" role="radiogroup" aria-label="Recording mode">
@@ -427,11 +438,6 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
             <option value="ab">Back to back</option>
           </select>
         </label>
-        <div class="field">
-          <span><label for="offset">Sync fix</label><output id="offOut" for="offset">0 ms</output></span>
-          <input type="range" id="offset" min="-300" max="300" step="5" value="0">
-          <p class="hint">If your voice lands late when you play both at once, move this right. If it lands early, move it left. It applies to every take, including the exported files.</p>
-        </div>
         <label class="check"><input type="checkbox" id="echo"> Echo cancellation (only when you can’t use headphones)</label>
         <hr class="divider">
         <button class="btn" type="button" id="bClear">Delete all takes</button>
@@ -445,7 +451,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
       </section>
     </div>
 
-    <p class="foot muted">Takes are saved in this browser as you go. With a keyboard: Space records or stops, O plays the original, T your take, B both at once, A back to back, and the arrow keys change cue.</p>
+    <p class="foot muted">Takes are saved in this browser as you go. With a keyboard: Space records or stops, O plays the original, T your take, B both at once, A back to back, the arrow keys change cue, and [ ] nudge the take by 10 ms ({ } by 1 ms).</p>
   </div>
 </div>
 
@@ -792,10 +798,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const pad3 = (n) => String(n).padStart(3, '0');
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
-  const fmtOffset = (ms) => (ms > 0 ? '+' : '') + ms + ' ms';
 
   const DEFAULTS = {
-    mode: 'over', countIn: true, offsetMs: 0, autoPlay: 'off', echo: false,
+    mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', suffix: '', trim: false,
   };
 
@@ -1299,15 +1304,20 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       if (t.saved && k !== CUR.key) S.takeCache.delete(k);
     }
   }
-  const packTake = (t) => ({ sr: t.sr, pcm: t.pcm, anchor: t.anchor, comp: t.comp, mode: t.mode, origDur: t.origDur, at: t.at });
-  // Frame in the stored recording where the take begins, lined up with the original's start.
-  function takeStart(t) {
-    if (t.mode !== 'over') return Math.max(0, t.anchor);
-    return Math.max(0, Math.round(t.anchor + (t.comp + S.settings.offsetMs / 1000) * t.sr));
+  const packTake = (t) => ({ sr: t.sr, pcm: t.pcm, anchor: t.anchor, comp: t.comp, mode: t.mode, origDur: t.origDur, at: t.at, shiftMs: t.shiftMs });
+  // How far this take has been dragged to the right of the original, in ms (negative: to the left).
+  const takeShift = (t) => (typeof t.shiftMs === 'number' ? t.shiftMs : S.settings.legacyShiftMs || 0);
+  // Frame in the stored recording that lines up with the original's start. Negative means the take
+  // was moved right past the start of the recording, so it begins with silence.
+  function takeStart(t, shiftMs = takeShift(t)) {
+    const base = t.mode === 'over' ? t.anchor + t.comp * t.sr : t.anchor;
+    return Math.round(base - (shiftMs / 1000) * t.sr);
   }
-  function alignedSlice(t) {
-    const i16 = new Int16Array(t.pcm), s = Math.min(i16.length, takeStart(t)), out = new Float32Array(i16.length - s);
-    for (let i = 0; i < out.length; i++) out[i] = i16[s + i] / 32768;
+  function alignedSlice(t, shiftMs) {
+    const i16 = new Int16Array(t.pcm), s = takeStart(t, shiftMs);
+    const lead = s < 0 ? -s : 0, from = Math.min(i16.length, Math.max(0, s));
+    const out = new Float32Array(lead + i16.length - from);
+    for (let i = from; i < i16.length; i++) out[lead + i - from] = i16[i] / 32768;
     return out;
   }
 
@@ -1609,7 +1619,7 @@ registerProcessor('dub-tap', DubTap);
     if (A.play) { A.play = null; renderPlayState(); drawLanes(); }
   }
   function takeBuffer(key, t) {
-    const sig = `${key}|${t.at}|${S.settings.offsetMs}|${S.settings.vol}|${CUR.guide ? 1 : 0}`;
+    const sig = `${key}|${t.at}|${takeShift(t)}|${S.settings.vol}|${CUR.guide ? 1 : 0}`;
     if (CUR.takeBuf && CUR.takeBufKey === sig) return CUR.takeBuf;
     const f = alignedSlice(t);
     const buf = A.ctx.createBuffer(1, Math.max(1, f.length), t.sr);
@@ -1663,18 +1673,20 @@ registerProcessor('dub-tap', DubTap);
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     return dpr;
   }
-  function paintLane(cv, env, total, color, head) {
+  function paintLane(cv, env, total, color, head, off = 0) {
     const dpr = sizeCanvas(cv), c = cv.getContext('2d'), W = cv.width, H = cv.height, mid = H / 2;
     c.clearRect(0, 0, W, H);
     c.fillStyle = TOK.line;
     c.fillRect(0, Math.round(mid), W, Math.max(1, Math.round(dpr)));
     if (env && env.v && env.v.length) {
-      const norm = Math.max(env.max || 0, 0.02), bpp = (total * 100) / W, amp = mid - 5 * dpr;
+      const norm = Math.max(env.max || 0, 0.02), bpp = (total * 100) / W, amp = mid - 5 * dpr, offB = off * 100;
       c.fillStyle = color;
       for (let x = 0; x < W; x++) {
-        const b0 = Math.floor(x * bpp);
+        let b0 = Math.floor(x * bpp - offB);
+        const b1 = Math.max(b0 + 1, Math.floor((x + 1) * bpp - offB));
+        if (b1 <= 0) continue;
         if (b0 >= env.v.length) break;
-        const b1 = Math.max(b0 + 1, Math.floor((x + 1) * bpp));
+        if (b0 < 0) b0 = 0;
         let m = 0;
         for (let b = b0; b < b1 && b < env.v.length; b++) { const v = env.v[b] || 0; if (v > m) m = v; }
         if (m <= 0) continue;
@@ -1708,7 +1720,8 @@ registerProcessor('dub-tap', DubTap);
     const r = A.rec;
     const total = r ? r.total : CUR.total || 1;
     paintLane($('cvGuide'), CUR.guide ? CUR.guide.env : null, total, TOK.guide, heads.guide);
-    paintLane($('cvTake'), r ? { v: r.env, max: r.envMax } : CUR.takeEnv, total, TOK.take, heads.take);
+    const off = CUR.drag ? (CUR.drag.shift - CUR.drag.base) / 1000 : 0;
+    paintLane($('cvTake'), r ? { v: r.env, max: r.envMax } : CUR.takeEnv, total, TOK.take, heads.take, off);
     paintRuler(total);
     $('takeEmpty').hidden = !!(r || CUR.takeEnv);
   }
@@ -1771,6 +1784,7 @@ registerProcessor('dub-tap', DubTap);
     pill.classList.toggle('done', has);
     $('durGuide').textContent = CUR.guide ? fmtSec(CUR.guide.dur) : '';
     $('durTake').textContent = CUR.take ? fmtSec(CUR.takeDur) : '';
+    renderSync();
   }
   function renderProgress() {
     const n = S.keys.length, d = S.keys.filter((k) => S.takes.has(k)).length;
@@ -1784,6 +1798,69 @@ registerProcessor('dub-tap', DubTap);
       : 'No takes yet. Record a cue and it will show up here.';
     $('bExport').disabled = !d;
     $('bClear').disabled = !S.takes.size;
+  }
+  // ---------- per-take sync: drag the take, or nudge it ----------
+  const SHIFT_MAX = 5000;
+  const clampShift = (ms) => Math.max(-SHIFT_MAX, Math.min(SHIFT_MAX, Math.round(ms)));
+  function renderSync() {
+    const t = CUR.take;
+    $('syncRow').hidden = !t;
+    if (!t) return;
+    const ms = CUR.drag ? CUR.drag.shift : takeShift(t);
+    $('syncText').textContent = ms === 0 ? 'Drag your take to line it up' : `Moved ${Math.abs(ms)} ms ${ms > 0 ? 'later' : 'earlier'}`;
+    $('bSyncReset').hidden = ms === 0;
+    for (const id of ['bNudgeL', 'bNudgeR', 'bSyncReset']) $(id).disabled = !!A.rec;
+  }
+  const pendingShift = new Map();
+  function flushShifts() {
+    for (const [key, t] of pendingShift) {
+      pendingShift.delete(key);
+      if (S.takes.has(key)) store.put('takes', key, packTake(t)).then((ok) => { t.saved = ok; });
+    }
+  }
+  let shiftTimer = 0;
+  function setShift(ms) {
+    const t = CUR.take, key = CUR.key;
+    if (!t || A.rec) return;
+    t.shiftMs = clampShift(ms);
+    CUR.takeBuf = null; CUR.takeBufKey = '';
+    setTakeView(t);
+    renderCueHead(); drawLanes();
+    pendingShift.set(key, t);
+    clearTimeout(shiftTimer);
+    shiftTimer = setTimeout(flushShifts, 400);
+  }
+  function bindDrag() {
+    const lane = $('takeLane');
+    lane.addEventListener('pointerdown', (e) => {
+      if (A.rec || !CUR.take || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      stopPlayback();
+      const s = takeShift(CUR.take);
+      CUR.drag = { id: e.pointerId, x0: e.clientX, base: s, shift: s, moved: false, total: CUR.total, w: lane.clientWidth || 1 };
+      try { lane.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+    });
+    lane.addEventListener('pointermove', (e) => {
+      const d = CUR.drag;
+      if (!d || e.pointerId !== d.id) return;
+      const dx = e.clientX - d.x0;
+      if (!d.moved && Math.abs(dx) < 4) return;
+      if (!d.moved) { d.moved = true; lane.classList.add('dragging'); }
+      d.shift = clampShift(d.base + (dx / d.w) * d.total * 1000);
+      renderSync(); drawLanes();
+    });
+    const end = (e) => {
+      const d = CUR.drag;
+      if (!d || e.pointerId !== d.id) return;
+      CUR.drag = null;
+      lane.classList.remove('dragging');
+      if (d.moved && d.shift !== d.base) setShift(d.shift);
+      else { renderSync(); drawLanes(); }
+    };
+    lane.addEventListener('pointerup', end);
+    lane.addEventListener('pointercancel', end);
+    $('bNudgeL').addEventListener('click', () => { if (CUR.take) setShift(takeShift(CUR.take) - 10); });
+    $('bNudgeR').addEventListener('click', () => { if (CUR.take) setShift(takeShift(CUR.take) + 10); });
+    $('bSyncReset').addEventListener('click', () => setShift(0));
   }
   function renderButtons() {
     const recOn = !!A.rec, n = S.keys.length, has = !!(CUR.key && S.takes.has(CUR.key));
@@ -2099,8 +2176,6 @@ registerProcessor('dub-tap', DubTap);
     document.querySelectorAll('.seg').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === s.mode)));
     $('countIn').checked = s.countIn;
     $('autoPlay').value = s.autoPlay;
-    $('offset').value = String(s.offsetMs);
-    $('offOut').textContent = fmtOffset(s.offsetMs);
     $('echo').checked = s.echo;
     $('fmt').value = s.fmt;
     $('cSr').value = String(s.cSr);
@@ -2156,13 +2231,7 @@ registerProcessor('dub-tap', DubTap);
     $('cEnc').addEventListener('input', (e) => { S.settings.cEnc = e.target.value; saveMeta(true); });
     $('vol').addEventListener('change', (e) => { S.settings.vol = e.target.value; CUR.takeBuf = null; saveMeta(true); });
     $('suffix').addEventListener('input', (e) => { S.settings.suffix = e.target.value; saveMeta(true); });
-    $('offset').addEventListener('change', () => saveMeta(true));
-    $('offset').addEventListener('input', (e) => {
-      S.settings.offsetMs = Number(e.target.value);
-      $('offOut').textContent = fmtOffset(S.settings.offsetMs);
-      if (CUR.take) { setTakeView(CUR.take); renderCueHead(); drawLanes(); }
-      saveMeta();
-    });
+    bindDrag();
     $('bExport').addEventListener('click', exportZip);
     $('bShare').addEventListener('click', async () => {
       if (!lastZip) return;
@@ -2188,15 +2257,18 @@ registerProcessor('dub-tap', DubTap);
       else if (k === 'ArrowRight') { e.preventDefault(); goTo(S.idx + 1); }
       else if (k === 'ArrowLeft') { e.preventDefault(); goTo(S.idx - 1); }
       else if (k === 'Escape') { if (A.rec) stopRecording(); else stopPlayback(); }
+      else if ((k === '[' || k === ']' || k === '{' || k === '}') && CUR.take) {
+        setShift(takeShift(CUR.take) + (k === '[' ? -10 : k === ']' ? 10 : k === '{' ? -1 : 1));
+      }
     });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        flushMeta();
+        flushMeta(); flushShifts();
         if (A.rec) { stopRecording(); toast('Recording stopped because the page went to the background.'); }
         stopPlayback();
       } else if (A.stream) wakeLock();
     });
-    window.addEventListener('pagehide', flushMeta);
+    window.addEventListener('pagehide', () => { flushMeta(); flushShifts(); });
     const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if (mq) { const f = () => { readTokens(); drawLanes(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
     let rt = 0;
@@ -2218,7 +2290,8 @@ registerProcessor('dub-tap', DubTap);
     const meta = await store.get('meta', 'session');
     if (meta && meta.settings) {
       S.settings = { ...DEFAULTS, ...meta.settings };
-      for (const k of ['autoStop', 'tail', 'kbps', 'normalize']) delete S.settings[k]; // options from older versions
+      if (typeof meta.settings.offsetMs === 'number' && meta.settings.offsetMs) S.settings.legacyShiftMs = -meta.settings.offsetMs;
+      for (const k of ['autoStop', 'tail', 'kbps', 'normalize', 'offsetMs']) delete S.settings[k]; // options from older versions
     }
     applySettingsToUI();
     if (meta && Array.isArray(meta.keys) && meta.keys.length) {
