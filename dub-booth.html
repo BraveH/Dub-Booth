@@ -652,7 +652,7 @@ body.sheet-open { overflow: hidden; }
         </div>
         <div class="group-box">
           <h3>Transcribe the originals</h3>
-          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads a model of about 80 MB.</p>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads about 100 MB.</p>
           <div class="row">
             <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
             <button class="btn small" type="button" id="bAsrOne">This cue only</button>
@@ -3582,60 +3582,111 @@ registerProcessor('dub-tap', DubTap);
 
   // ---------- transcribing the originals ----------
   // Speech recognition (Whisper, through Transformers.js) runs in a worker on this device. The
-  // library and the model download the first time; after that the browser keeps them.
-  const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.web.min.js';
-  const ASR_SRC = `
-import { pipeline, env } from '${ASR_LIB}';
-env.allowLocalModels = false;
-try { env.backends.onnx.wasm.numThreads = 1; } catch (_) {}
-const MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
-let asr = null, loading = null;
+  // library and the model download the first time; after that the browser keeps the model.
+  // This is the library's self-contained build. Its "web" build leaves two of its own imports for
+  // a bundler to fill in, so no browser can load it as it is.
+  const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+  // The larger model first. A device that can't load it gets the smaller one, in a fresh worker.
+  const ASR_MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
+  // The speech runtime asks for shared memory that can grow to 4 GB. iPhone and iPad Safari may
+  // refuse to set that much aside, and these models need well under 1 GB, so there it gets 1 GB.
+  const appleMobile = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const asrSource = (model, memCap) => `
+const LIB = ${JSON.stringify(ASR_LIB)}, MODEL = ${JSON.stringify(model)}, MEM_CAP = ${memCap | 0};
+if (MEM_CAP) {
+  const Mem = WebAssembly.Memory;
+  const Capped = function Memory(d) {
+    if (!d || !d.shared || !(d.maximum > MEM_CAP)) return new Mem(d);
+    let err = null;
+    for (const max of [MEM_CAP, MEM_CAP >> 1]) {
+      try { return new Mem(Object.assign({}, d, { maximum: Math.max(max, d.initial || 0) })); } catch (e) { err = e; }
+    }
+    throw err;
+  };
+  Capped.prototype = Mem.prototype;
+  WebAssembly.Memory = Capped;
+}
+// Whisper models exported without cross-attentions can't time single words; their phrases are timed instead.
+let asr = null, loading = null, word = /_timestamped$/.test(MODEL);
+const report = (stage, id, e) => self.postMessage({ type: 'error', stage, id, message: String((e && e.message) || e || 'unknown error') });
 async function load() {
-  let last = null;
-  for (const m of MODELS) {
-    try {
-      asr = await pipeline('automatic-speech-recognition', m, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, progress: p.progress } }) });
-      self.postMessage({ type: 'ready', model: m });
-      return;
-    } catch (e) { last = e; }
-  }
-  throw last || new Error('No speech model could load');
+  let lib;
+  try { lib = await import(LIB); } catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { stage: 'lib' }); }
+  const { pipeline, env } = lib;
+  env.allowLocalModels = false;
+  try { env.backends.onnx.wasm.numThreads = 1; } catch (_) {}
+  try {
+    asr = await pipeline('automatic-speech-recognition', MODEL, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, loaded: p.loaded, total: p.total } }) });
+  } catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { stage: 'model' }); }
+  self.postMessage({ type: 'ready', model: MODEL });
 }
 self.onmessage = async (e) => {
   const m = e.data;
+  try { loading = loading || load(); await loading; } catch (err) { report(err.stage || 'model', m.id, err); return; }
   try {
-    if (!asr) { loading = loading || load(); await loading; }
-    let out, segments = false;
-    try { out = await asr(m.audio, { return_timestamps: 'word', chunk_length_s: 30, stride_length_s: 5 }); }
-    catch (_) { out = await asr(m.audio, { return_timestamps: true, chunk_length_s: 30, stride_length_s: 5 }); segments = true; }
+    const opts = { chunk_length_s: 30, stride_length_s: 5 };
+    let out = null;
+    if (word) {
+      try { out = await asr(m.audio, Object.assign({ return_timestamps: 'word' }, opts)); } catch (_) { word = false; }
+    }
+    const segments = !out;
+    if (!out) out = await asr(m.audio, Object.assign({ return_timestamps: true }, opts));
     self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments });
-  } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+  } catch (err) { report('run', m.id, err); }
 };`;
-  let asrW = null, asrSeq = 0;
+  let asrW = null, asrSeq = 0, asrModel = 0;
   const asrWait = new Map();
-  function asrFail(msg) { for (const w of asrWait.values()) w.rej(new Error(msg)); asrWait.clear(); }
+  const asrErr = (message, stage) => Object.assign(new Error(message), { stage });
+  function asrFail(err) { for (const w of asrWait.values()) w.rej(err); asrWait.clear(); }
+  function asrStop() { if (asrW) { try { asrW.terminate(); } catch (_) { /* already gone */ } asrW = null; } }
   function asrWorker() {
     if (asrW) return asrW;
-    asrW = new Worker(URL.createObjectURL(new Blob([ASR_SRC], { type: 'text/javascript' })), { type: 'module' });
-    asrW.onmessage = (e) => {
+    const src = asrSource(ASR_MODELS[asrModel], appleMobile() ? 16384 : 0);
+    const w = asrW = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+    const files = new Map(); // file -> [bytes loaded, bytes in all]
+    w.onmessage = (e) => {
       const d = e.data;
       if (d.type === 'progress') {
         const p = d.p || {};
-        if (p.status === 'progress' && typeof p.progress === 'number') $('asrText').textContent = `Downloading the speech model: ${Math.round(p.progress)}%`;
+        if (p.status === 'progress' && p.file && p.total) files.set(p.file, [p.loaded || 0, p.total]);
+        else if (p.status === 'done' && files.has(p.file)) files.set(p.file, [files.get(p.file)[1], files.get(p.file)[1]]);
+        else return;
+        let got = 0, all = 0;
+        for (const [l, t] of files.values()) { got += l; all += t; }
+        $('asrText').textContent = got < all ? `Loading the speech model: ${Math.round(got / 1048576)} of ${Math.round(all / 1048576)} MB` : 'Starting the speech model…';
         return;
       }
       if (d.type === 'ready') { $('asrText').textContent = 'Speech model ready. Transcribing…'; return; }
-      const w = asrWait.get(d.id);
-      if (!w) return;
+      const job = asrWait.get(d.id);
+      if (!job) return;
       asrWait.delete(d.id);
-      if (d.type === 'error') w.rej(new Error(d.message)); else w.res(d);
+      if (d.type === 'error') job.rej(asrErr(d.message, d.stage)); else job.res(d);
     };
-    asrW.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); asrFail((e && e.message) || 'Speech recognition couldn’t start.'); try { asrW.terminate(); } catch (_) { /* ignore */ } asrW = null; };
-    return asrW;
+    // Only fires if the worker itself can't run; problems inside it arrive as messages.
+    w.onerror = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (asrW === w) asrStop();
+      asrFail(asrErr((e && e.message) || 'the speech worker stopped', 'worker'));
+    };
+    return w;
   }
   function asrRun(audio) {
     const id = ++asrSeq;
     return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio }, [audio.buffer]); });
+  }
+  // What went wrong, in words, with the browser's own message kept for reporting.
+  function asrProblem(e) {
+    const raw = String((e && e.message) || e || 'unknown error'), stage = e && e.stage;
+    if (navigator.onLine === false && (stage === 'lib' || stage === 'model')) {
+      return { short: 'You’re offline.', long: 'You’re offline. Speech recognition needs a connection the first time, to download the library and the model.' };
+    }
+    if (stage === 'lib') return { short: 'The speech library didn’t download.', long: `The speech recognition library didn’t download. Check the connection and try again. (${raw})` };
+    if (/memory|alloc|RangeError/i.test(raw)) return { short: 'Not enough memory on this device.', long: `This device ran out of memory for speech recognition. Close other apps and try again. (${raw})` };
+    if (stage === 'model' && /fetch|network|load failed|could not locate|status|connection/i.test(raw)) {
+      return { short: 'The speech model didn’t download.', long: `The speech model didn’t download. Check the connection and try again. (${raw})` };
+    }
+    if (stage === 'run') return { short: 'Speech recognition failed on a cue.', long: `Speech recognition failed on this cue. (${raw})` };
+    return { short: 'Speech recognition couldn’t start.', long: `Speech recognition couldn’t start on this device. (${raw})` };
   }
   // Turns recognizer output into timed words; whole sentences are spread over their own time span.
   function wordsOf(out) {
@@ -3663,7 +3714,17 @@ self.onmessage = async (e) => {
       try {
         const g = await getOriginal(key);
         const a16 = new Float32Array(resample(monoOf(g.buffer), g.buffer.sampleRate, 16000));
-        const out = await asrRun(a16);
+        let out;
+        for (;;) {
+          try { out = await asrRun(a16.slice()); break; } catch (e) {
+            // A model that won't load, or runs out of memory, makes way for the next one.
+            const load = e.stage === 'model' || e.stage === 'worker' || (e.stage === 'run' && /memory|alloc|RangeError/i.test(e.message));
+            if (A.asr.stop || !load || asrModel >= ASR_MODELS.length - 1) throw e;
+            asrStop();
+            asrModel++;
+            $('asrText').textContent = 'Trying a smaller speech model…';
+          }
+        }
         if (A.asr.stop) break;
         const inf = cueInfo(key);
         inf.words = wordsOf(out);
@@ -3673,23 +3734,27 @@ self.onmessage = async (e) => {
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
-      } catch (e) { failed = e; break; }
+      } catch (e) { if (!A.asr.stop) failed = e; break; }
     }
     const stopped = A.asr.stop;
     A.asr = null;
+    // A loaded model holds a few hundred MB; let it go so recording keeps the memory it needs.
+    asrStop();
+    if (failed && asrModel === ASR_MODELS.length - 1 && failed.stage !== 'run') asrModel = 0; // nothing loaded: start over next time
     $('bAsrStop').hidden = true;
     $('asrBar').hidden = true;
     afterScriptChange();
     if (failed) {
-      $('asrText').textContent = 'Speech recognition didn’t work here. It needs an internet connection the first time, to download the model.';
-      toast(`Transcription stopped: ${failed.message || failed}`);
+      const p = asrProblem(failed);
+      $('asrText').textContent = done ? `Transcribed ${done} cue${done === 1 ? '' : 's'}, then stopped. ${p.long}` : p.long;
+      toast(`Transcription stopped. ${p.short}`);
     } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}.`;
   }
   function stopTranscribe() {
     if (!A.asr) return;
     A.asr.stop = true;
-    if (asrW) { asrW.terminate(); asrW = null; }
-    asrFail('stopped');
+    asrStop();
+    asrFail(asrErr('stopped', 'stopped'));
   }
 
   // ---------- lining up with the original ----------
