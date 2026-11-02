@@ -471,7 +471,13 @@ input[type="search"]:focus-visible { outline: 3px solid var(--guide); outline-of
 /* every line, in the script view */
 .script-table { display: grid; gap: 8px; }
 .st-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, 30%); gap: 6px 8px; padding: 10px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
-.st-name { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); }
+.st-name { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-check { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--ink); cursor: pointer; }
+.st-name .st-done { margin-left: auto; flex: none; overflow: visible; font: 600 11px/1 var(--font-ui); letter-spacing: 0.02em; color: var(--muted); }
+/* the selection bar stays in view while the list scrolls */
+.st-tools { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 -16px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 14px; }
+.st-tools .count { margin-right: auto; font-weight: 600; }
+@media (min-width: 1000px) { .st-tools { top: 57px; } }
 .st-name b { color: var(--ink); font-weight: 700; flex: none; }
 .st-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-row input { min-height: 40px; }
@@ -704,7 +710,7 @@ body.sheet-open { overflow: hidden; }
         </div>
         <div class="group-box">
           <h3>Transcribe the originals</h3>
-          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. Set the language below before you start. The first time, it downloads its model, up to about 100 MB.</p>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down what each original says. Select the cues to transcribe in the list below; the ones not transcribed yet start selected. Lines you typed or imported stay as they are. Set the language before you start. The first time, it downloads its model, up to about 100 MB.</p>
           <div class="field"><span id="asrLangLbl">Language spoken in the originals</span>
             <button class="pick-btn" type="button" id="asrLang" aria-haspopup="dialog" aria-expanded="false" aria-controls="langDlg" aria-labelledby="asrLangLbl asrLangVal">
               <span id="asrLangVal">English</span>
@@ -720,8 +726,7 @@ body.sheet-open { overflow: hidden; }
           </label>
           <p class="hint" id="asrModelHint"></p>
           <div class="row">
-            <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
-            <button class="btn small" type="button" id="bAsrOne">This cue only</button>
+            <button class="btn small primary" type="button" id="bAsr">Transcribe the selected cues</button>
             <button class="link-btn" type="button" id="bAsrStop" hidden>Stop</button>
           </div>
           <progress id="asrBar" max="1" value="0" hidden></progress>
@@ -739,7 +744,12 @@ body.sheet-open { overflow: hidden; }
         </div>
         <div class="group-box">
           <h3>Every line</h3>
-          <p class="hint">Edit any cue’s character and line here; changes save as you type.</p>
+          <p class="hint">Edit any cue’s character and line here; changes save as you type. The boxes choose which cues to transcribe.</p>
+          <div class="st-tools">
+            <span class="count" id="stCount" aria-live="polite"></span>
+            <button class="link-btn" type="button" id="bPickAll">Select all</button>
+            <button class="link-btn" type="button" id="bPickNone">Unselect all</button>
+          </div>
           <div class="script-table" id="scriptTable"></div>
         </div>
       </section>
@@ -1284,7 +1294,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
   // Shown in Settings and in the transcription log, to tell which copy of the app is running.
-  const APP_VERSION = '2026.11.02-7';
+  const APP_VERSION = '2026.11.02-8';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -3163,7 +3173,6 @@ registerProcessor('dub-tap', DubTap);
     $('cueOf').textContent = ' / ' + n;
     $('cueName').textContent = key || '';
     $('cueName').title = key || '';
-    $('bAsrOne').textContent = n ? `Only cue ${pad3(S.idx + 1)}` : 'This cue only'; // the script view can't see which cue is open
     const pill = $('cueState');
     pill.textContent = has ? 'Dubbed' : 'No take yet';
     pill.classList.toggle('done', has);
@@ -3590,9 +3599,8 @@ registerProcessor('dub-tap', DubTap);
     $('asrSize').value = S.settings.asrSize;
     renderAsrModelHint();
     $('charFolders').checked = S.settings.charFolders;
-    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang', 'asrSize']) $(id).disabled = !n || !!A.asr;
-    const left = asrLeft().length;
-    $('bAsr').textContent = !n || left === n ? 'Transcribe all cues' : left ? `Transcribe the other ${left} cue${left === 1 ? '' : 's'}` : 'Transcribe all cues again';
+    for (const id of ['bPasteLines', 'asrLang', 'asrSize']) $(id).disabled = !n || !!A.asr;
+    renderPicks();
   }
   const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
   function refreshCharFilter() {
@@ -4145,6 +4153,8 @@ self.onmessage = async (e) => {
         // A typed or imported line stays; one that only came from an earlier transcription is replaced.
         if (inf.asrText && (!inf.line || inf.lineFromAsr || (before && inf.line === before))) { inf.line = inf.asrText; inf.lineFromAsr = true; }
         saveInfo(); flushInfo(); // saved at once: if the page is closed mid-run, finished cues stay done
+        asrPick.delete(key);
+        renderPicks();
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
@@ -4948,10 +4958,14 @@ self.onmessage = async (e) => {
     S.keys.forEach((k, i) => {
       const inf = S.info.get(k) || {}, row = document.createElement('div');
       row.className = 'st-row'; row.dataset.key = k;
-      const nm = document.createElement('div'); nm.className = 'st-name';
+      const nm = document.createElement('label'); nm.className = 'st-name';
+      const pick = document.createElement('input');
+      pick.type = 'checkbox'; pick.className = 'st-check';
+      pick.setAttribute('aria-label', `Transcribe cue ${i + 1}, ${k}`);
       const no = document.createElement('b'); no.textContent = pad3(i + 1);
       const fn = document.createElement('span'); fn.textContent = k;
-      nm.append(no, fn);
+      const done = document.createElement('span'); done.className = 'st-done'; done.textContent = 'Transcribed';
+      nm.append(pick, no, fn, done);
       const line = document.createElement('input');
       line.type = 'text'; line.className = 'st-line'; line.dir = 'auto'; line.value = inf.line || ''; line.placeholder = 'Line to say';
       line.setAttribute('aria-label', `Line for cue ${i + 1}, ${k}`);
@@ -4963,6 +4977,33 @@ self.onmessage = async (e) => {
       frag.append(row);
     });
     box.append(frag);
+    renderPicks();
+  }
+
+  // ---------- which cues to transcribe ----------
+  // Chosen with the boxes in the script list. To start with, the cues not yet transcribed in the chosen
+  // language are selected; each cue unselects itself once it's done, so after a stop (or the page
+  // closing) the selection shows what's left.
+  let asrPick = new Set(), pickSig = '';
+  function picks() {
+    const sig = `${S.keys.length}|${S.keys[0]}|${S.keys[S.keys.length - 1]}`;
+    if (sig !== pickSig) { pickSig = sig; asrPick = new Set(asrLeft()); }
+    return asrPick;
+  }
+  function renderPicks() {
+    const p = picks(), n = p.size, all = S.keys.length, busy = !!A.asr, lang = asrLang();
+    $('stCount').textContent = all ? `${n} of ${all} selected` : '';
+    $('bAsr').textContent = n ? `Transcribe ${n} selected cue${n === 1 ? '' : 's'}` : 'Transcribe the selected cues';
+    $('bAsr').disabled = busy || !n;
+    $('bPickAll').disabled = busy || n === all;
+    $('bPickNone').disabled = busy || !n;
+    for (const row of $('scriptTable').children) {
+      const c = row.querySelector('.st-check');
+      if (!c) continue;
+      c.checked = p.has(row.dataset.key);
+      c.disabled = busy;
+      row.querySelector('.st-done').hidden = !asrDone(row.dataset.key, lang);
+    }
   }
 
   // ---------- remote control ----------
@@ -5187,8 +5228,15 @@ self.onmessage = async (e) => {
     });
     $('rhythmo').addEventListener('change', (e) => { S.settings.rhythmo = e.target.checked; saveMeta(true); renderLine(); drawLanes(); });
     $('charFolders').addEventListener('change', (e) => { S.settings.charFolders = e.target.checked; saveMeta(true); });
-    $('bAsr').addEventListener('click', () => { const left = asrLeft(); transcribe(left.length ? left : S.keys.slice()); });
-    $('bAsrOne').addEventListener('click', () => { if (CUR.key) transcribe([CUR.key]); });
+    $('bAsr').addEventListener('click', () => { const p = picks(); transcribe(S.keys.filter((k) => p.has(k))); });
+    $('bPickAll').addEventListener('click', () => { picks(); asrPick = new Set(S.keys); renderPicks(); });
+    $('bPickNone').addEventListener('click', () => { picks().clear(); renderPicks(); });
+    $('scriptTable').addEventListener('change', (e) => {
+      if (!e.target.classList.contains('st-check')) return;
+      const key = e.target.closest('.st-row').dataset.key;
+      if (e.target.checked) picks().add(key); else picks().delete(key);
+      renderPicks();
+    });
     $('bAsrStop').addEventListener('click', stopTranscribe);
     $('bStOk').addEventListener('click', () => markCue('ok'));
     $('bCueMenu').addEventListener('click', () => openSheet());
@@ -5199,7 +5247,7 @@ self.onmessage = async (e) => {
     $('cueSearch').addEventListener('input', () => updateList());
     $('scriptTable').addEventListener('input', (e) => {
       const el = e.target, key = el.closest('.st-row') && el.closest('.st-row').dataset.key;
-      if (!key) return;
+      if (!key || el.classList.contains('st-check')) return; // boxes are handled on change
       const inf = cueInfo(key);
       if (el.classList.contains('st-line')) { inf.line = el.value.trim(); inf.lineFromAsr = !!inf.asrText && inf.line === inf.asrText; }
       else inf.char = el.value.trim();
