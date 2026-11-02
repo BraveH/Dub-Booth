@@ -149,13 +149,14 @@ Whisper always processes 30 seconds of audio, even for a 3-second cue, which is 
 
 ![What goes in the export: dubs named like their originals, kept originals as they are, optional character folders, alternates and a cue sheet](docs/images/export.svg)
 
-<img src="docs/images/export.png" width="260" alt="The Export screen: format choices and the download button">
+<img src="docs/images/export.png" width="260" alt="The Export screen: the sound options, including making each dub as long as its original, and the download button">
 
 **Sound of your dubs** (applies when you play your dub and when you export):
 
 - **Reduce steady background noise**, like hiss or hum.
 - **Match each original's tone** with an automatic EQ.
 - **Fill the gaps between clips** with your room's own quiet sound.
+- **Make each dub as long as its original:** the time after your last clip is filled with your room's own quiet sound, so each file runs exactly as long as its original and lines up with it end to end. The room sound comes from the quiet moment at the start of your takes, before you speak; if there isn't one, the end is silent. A dub that runs longer than its original is left as it is.
 - **Volume:** match each original's loudness, even out (peaks at −1 dB), or leave as recorded.
 
 **Format:** *Same as each original* writes an MP3 with the original's sample rate, channels and bitrate (originals that aren't MP3 use the custom settings). Or choose a custom MP3, or WAV (16-bit, at each original's rate).
@@ -163,7 +164,7 @@ Whisper always processes 30 seconds of audio, even for a 3-second cue, which is 
 **Names and extras:**
 
 - **File names** use a pattern: `{name}` is the original's name, `{cue}` its number, `{character}` who says it. Leave it as `{name}` to keep the same names.
-- **Trim silence** from the start and end of each dub.
+- **Trim silence** from the start and end of each dub. It's off while *Make each dub as long as its original* is on, since trimming would undo it.
 - **Character folders:** each character's files in a folder named after them.
 - **Alternates:** every take on its own, in an `alternates` folder.
 - **Cue sheet:** a CSV with every cue's file names, character, line, marks, notes, length and takes.

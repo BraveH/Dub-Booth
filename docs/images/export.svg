@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" width="960" height="380" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d">
   <title id="t">What goes in the export</title>
   <desc id="d">A dubbed cue becomes a file named and encoded like its original. A cue marked "keep the original" goes in as the original file, unchanged. A cue with no take is left out. Character folders, alternates and a cue sheet are optional.</desc>
   <style>
@@ -13,7 +13,7 @@
     .why { font-size: 12.5px; fill: #566173; }
     .arr { fill: none; stroke: #9aa5b4; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   </style>
-  <rect x="0" y="0" width="960" height="380" rx="18" fill="#edf0f3"/>
+  <rect x="0" y="0" width="960" height="400" rx="18" fill="#edf0f3"/>
   <text class="f h" x="28" y="42">What goes in the export</text>
   <text class="f sub" x="28" y="64">One zip. Every file keeps its original’s name (or the pattern you set), so the folder drops straight back into your project.</text>
 
@@ -59,6 +59,7 @@
 
   <g class="f cs">
     <text x="28" y="340" fill="#121821" font-weight="700">The sound of each dub</text>
-    <text x="28" y="362">Optional noise reduction, tone match to the original and room tone between clips; volume matched to the original, evened out, or left as recorded.</text>
+    <text x="28" y="362">Optional noise reduction, tone match to the original, and your room’s quiet sound between clips or after the last one, to make the dub as long as its original.</text>
+    <text x="28" y="382">Volume matched to the original, evened out, or left as recorded.</text>
   </g>
 </svg>
