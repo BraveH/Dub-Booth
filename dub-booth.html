@@ -349,7 +349,18 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
   .tab svg { width: 42px; height: 26px; padding: 3px 10px; border-radius: 999px; }
   .tab[aria-current="page"] { background: transparent; }
   .tab[aria-current="page"] svg { background: var(--well); }
-  body.in-work { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px)); }
+  /* The page itself doesn't scroll on phones; .wrap does. iOS 26 can leave the page scrolled a little
+     after the keyboard closes, which pulls anything fixed to the bottom (the tab bar) up the screen.
+     A page that can't scroll can't be left scrolled. */
+  html.in-work, html.in-work body { height: 100%; overflow: hidden; }
+  html.in-work body { min-height: 0; padding: 0; }
+  html.in-work .wrap {
+    height: 100%; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  }
+  /* Room at the end for the tab bar: a spacer rather than padding, since sticky bars (the record dock,
+     the export button) measure their distance from the padding's inner edge. */
+  html.in-work .wrap::after { content: ""; display: block; height: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* views */
@@ -3540,6 +3551,8 @@ registerProcessor('dub-tap', DubTap);
     renderAsrLang();
     $('charFolders').checked = S.settings.charFolders;
     for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang']) $(id).disabled = !n || !!A.asr;
+    const left = asrLeft().length;
+    $('bAsr').textContent = !n || left === n ? 'Transcribe all cues' : left ? `Transcribe the other ${left} cue${left === 1 ? '' : 's'}` : 'Transcribe all cues again';
   }
   const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
   function refreshCharFilter() {
@@ -3666,6 +3679,9 @@ registerProcessor('dub-tap', DubTap);
     cy: 'Welsh', yi: 'Yiddish', yo: 'Yoruba',
   };
   const asrLang = () => (ASR_LANGS[S.settings.asrLang] ? S.settings.asrLang : 'en');
+  // A cue counts as done once it has been transcribed in the chosen language.
+  const asrDone = (k, lang) => { const i = S.info.get(k); return !!(i && i.asrLang === lang && typeof i.asrText === 'string'); };
+  const asrLeft = () => { const lang = asrLang(); return S.keys.filter((k) => !asrDone(k, lang)); };
   // ---------- the language picker: a sheet with a search field ----------
   // Every language once, sorted by its English name, with its own name where the browser knows it.
   const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -3789,7 +3805,7 @@ registerProcessor('dub-tap', DubTap);
     if (langFrom && langFrom.focus) langFrom.focus();
   }
   function chooseLang(code) {
-    if (ASR_LANGS[code]) { S.settings.asrLang = code; saveMeta(true); renderAsrLang(); }
+    if (ASR_LANGS[code]) { S.settings.asrLang = code; saveMeta(true); renderAsrLang(); renderScript(); }
     closeLangPicker();
   }
   // The speech runtime asks for shared memory that can grow to 4 GB. iPhone and iPad Safari may
@@ -3797,18 +3813,23 @@ registerProcessor('dub-tap', DubTap);
   const appleMobile = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const asrSource = (model, memCap) => `
 const LIB = ${JSON.stringify(ASR_LIB)}, MODEL = ${JSON.stringify(model)}, MEM_CAP = ${memCap | 0};
-if (MEM_CAP) {
+// The runtime's memory only ever grows. Keep hold of it to report its size; cap it where asked.
+let heap = null;
+{
   const Mem = WebAssembly.Memory;
-  const Capped = function Memory(d) {
-    if (!d || !d.shared || !(d.maximum > MEM_CAP)) return new Mem(d);
-    let err = null;
-    for (const max of [MEM_CAP, MEM_CAP >> 1]) {
-      try { return new Mem(Object.assign({}, d, { maximum: Math.max(max, d.initial || 0) })); } catch (e) { err = e; }
-    }
-    throw err;
+  const Tracked = function Memory(d) {
+    let m = null, err = null;
+    if (MEM_CAP && d && d.shared && d.maximum > MEM_CAP) {
+      for (const max of [MEM_CAP, MEM_CAP >> 1]) {
+        try { m = new Mem(Object.assign({}, d, { maximum: Math.max(max, d.initial || 0) })); break; } catch (e) { err = e; }
+      }
+      if (!m) throw err;
+    } else m = new Mem(d);
+    if (d && d.shared) heap = m;
+    return m;
   };
-  Capped.prototype = Mem.prototype;
-  WebAssembly.Memory = Capped;
+  Tracked.prototype = Mem.prototype;
+  WebAssembly.Memory = Tracked;
 }
 // Whisper models exported without cross-attentions can't time single words; their phrases are timed instead.
 let asr = null, loading = null, word = /_timestamped$/.test(MODEL);
@@ -3835,10 +3856,14 @@ self.onmessage = async (e) => {
     }
     const segments = !out;
     if (!out) out = await asr(m.audio, Object.assign({ return_timestamps: true }, opts));
-    self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments });
+    self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments, heap: heap ? heap.buffer.byteLength : 0 });
   } catch (err) { report('run', m.id, err); }
 };`;
-  let asrW = null, asrSeq = 0, asrModel = 0;
+  // Memory the speech runtime takes stays taken until its worker ends, and it creeps up from cue to cue.
+  // On an iPhone, a long run grew until iOS closed the page, so a fresh worker takes over every few
+  // cues, or sooner if the memory grows large. The model comes back from the browser's cache.
+  const ASR_PER_WORKER = appleMobile() ? 3 : 10, ASR_HEAP_LIMIT = 600 * 1048576;
+  let asrW = null, asrSeq = 0, asrModel = 0, asrUses = 0, asrWarm = false;
   const asrWait = new Map();
   const asrErr = (message, stage) => Object.assign(new Error(message), { stage });
   function asrFail(err) { for (const w of asrWait.values()) w.rej(err); asrWait.clear(); }
@@ -3847,10 +3872,12 @@ self.onmessage = async (e) => {
     if (asrW) return asrW;
     const src = asrSource(ASR_MODELS[asrModel], appleMobile() ? 16384 : 0);
     const w = asrW = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+    asrUses = 0;
     const files = new Map(); // file -> [bytes loaded, bytes in all]
     w.onmessage = (e) => {
       const d = e.data;
       if (d.type === 'progress') {
+        if (asrWarm) return; // a fresh worker mid-run: the cue count says more than reloading from cache
         const p = d.p || {};
         if (p.status === 'progress' && p.file && p.total) files.set(p.file, [p.loaded || 0, p.total]);
         else if (p.status === 'done' && files.has(p.file)) files.set(p.file, [files.get(p.file)[1], files.get(p.file)[1]]);
@@ -3860,7 +3887,7 @@ self.onmessage = async (e) => {
         $('asrText').textContent = got < all ? `Loading the speech model: ${Math.round(got / 1048576)} of ${Math.round(all / 1048576)} MB` : 'Starting the speech model…';
         return;
       }
-      if (d.type === 'ready') { $('asrText').textContent = 'Speech model ready. Transcribing…'; return; }
+      if (d.type === 'ready') { if (!asrWarm) $('asrText').textContent = 'Speech model ready. Transcribing…'; asrWarm = true; return; }
       const job = asrWait.get(d.id);
       if (!job) return;
       asrWait.delete(d.id);
@@ -3913,8 +3940,10 @@ self.onmessage = async (e) => {
     renderScript();
     let done = 0, failed = null;
     const lang = asrLang(), langName = ASR_LANGS[lang];
+    asrWarm = false;
     for (const key of keys) {
       if (A.asr.stop) break;
+      if (done) await new Promise((r) => setTimeout(r, 30)); // a breath between cues
       $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}, in ${langName}…`;
       try {
         const g = await getOriginal(key);
@@ -3927,16 +3956,19 @@ self.onmessage = async (e) => {
             if (A.asr.stop || !load || asrModel >= ASR_MODELS.length - 1) throw e;
             asrStop();
             asrModel++;
+            asrWarm = false;
             $('asrText').textContent = 'Trying a smaller speech model…';
           }
         }
         if (A.asr.stop) break;
+        if (++asrUses >= ASR_PER_WORKER || (out.heap || 0) > ASR_HEAP_LIMIT) asrStop();
         const inf = cueInfo(key), before = inf.asrText;
         inf.words = wordsOf(out);
         inf.asrText = String(out.text || '').trim();
+        inf.asrLang = lang;
         // A typed or imported line stays; one that only came from an earlier transcription is replaced.
         if (inf.asrText && (!inf.line || inf.lineFromAsr || (before && inf.line === before))) { inf.line = inf.asrText; inf.lineFromAsr = true; }
-        saveInfo();
+        saveInfo(); flushInfo(); // saved at once: if the page is closed mid-run, finished cues stay done
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
@@ -4232,6 +4264,14 @@ self.onmessage = async (e) => {
   function scrollListToCur() {
     const ol = $('cues'), li = ol.children[S.idx];
     if (!li || li.offsetParent === null) return;
+    if (ol.scrollHeight <= ol.clientHeight + 1) {
+      // A phone's list is as long as it needs to be: bring the cue into view on the page, above the tab bar.
+      const sc = pageScroller(), r = li.getBoundingClientRect(), tabs = $('tabs').getBoundingClientRect();
+      const lo = sc === document.scrollingElement ? 0 : Math.max(0, sc.getBoundingClientRect().top);
+      const hi = Math.min(window.innerHeight, tabs.height && tabs.top > 0 ? tabs.top : window.innerHeight);
+      if (r.top < lo + 8 || r.bottom > hi - 8) sc.scrollTop += r.top - (lo + hi - r.height) / 2;
+      return;
+    }
     const top = li.offsetTop - ol.offsetTop, bottom = top + li.offsetHeight;
     if (top < ol.scrollTop) ol.scrollTop = top - 8;
     else if (bottom > ol.scrollTop + ol.clientHeight) ol.scrollTop = bottom - ol.clientHeight + 8;
@@ -4247,6 +4287,7 @@ self.onmessage = async (e) => {
     renderScript();
     $('welcome').hidden = true;
     $('work').hidden = false;
+    document.documentElement.classList.add('in-work');
     document.body.classList.add('in-work');
     $('tabs').hidden = false;
     let v = 'booth';
@@ -4671,6 +4712,11 @@ self.onmessage = async (e) => {
   }
 
   // ---------- views ----------
+  // On phones the page doesn't scroll and .wrap does (see the CSS for why); elsewhere the page scrolls.
+  function pageScroller() {
+    const w = document.querySelector('.wrap');
+    return w && /auto|scroll/.test(getComputedStyle(w).overflowY) ? w : (document.scrollingElement || document.documentElement);
+  }
   // Booth, Cues, Script, Export and Settings each fill the screen; from 1000px the cue list stays
   // beside the booth. The last view is remembered on this device.
   const VIEWS = ['booth', 'cues', 'script', 'export', 'settings'];
@@ -4687,7 +4733,7 @@ self.onmessage = async (e) => {
     try { localStorage.setItem('dub-booth-view', v); } catch (_) { /* storage unavailable */ }
     if (v === 'script') renderScriptTable();
     if (v === 'settings') renderStorage();
-    if (was !== v) window.scrollTo(0, 0);
+    if (was !== v) pageScroller().scrollTo(0, 0);
     // Canvases have no size while their view is hidden; draw them once it shows.
     requestAnimationFrame(() => { if (boothShown()) drawLanes(); if (v === 'cues' || wide()) scrollListToCur(); });
   }
@@ -4958,7 +5004,7 @@ self.onmessage = async (e) => {
     });
     $('rhythmo').addEventListener('change', (e) => { S.settings.rhythmo = e.target.checked; saveMeta(true); renderLine(); drawLanes(); });
     $('charFolders').addEventListener('change', (e) => { S.settings.charFolders = e.target.checked; saveMeta(true); });
-    $('bAsr').addEventListener('click', () => transcribe(S.keys.slice()));
+    $('bAsr').addEventListener('click', () => { const left = asrLeft(); transcribe(left.length ? left : S.keys.slice()); });
     $('bAsrOne').addEventListener('click', () => { if (CUR.key) transcribe([CUR.key]); });
     $('bAsrStop').addEventListener('click', stopTranscribe);
     $('bStOk').addEventListener('click', () => markCue('ok'));
@@ -5099,6 +5145,18 @@ self.onmessage = async (e) => {
     if (mq) { const f = () => { readTokens(); drawLanes(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
     let rt = 0;
     window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (currentView() === 'cues' && wide()) showView('booth'); drawLanes(); }, 80); });
+    // iOS 26 can leave the visual viewport scrolled after the keyboard closes. On phones the page itself
+    // doesn't scroll, so scrolling the window back to the top only puts that right.
+    const vv = window.visualViewport;
+    if (vv) {
+      const typing = () => !!(document.activeElement && document.activeElement.matches('input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select'));
+      const settle = () => {
+        if (!document.documentElement.classList.contains('in-work') || wide() || typing()) return;
+        if (vv.offsetTop > 0.5 && Math.abs(vv.scale - 1) < 0.01) window.scrollTo(0, 0);
+      };
+      vv.addEventListener('resize', () => setTimeout(settle, 150));
+      document.addEventListener('focusout', () => setTimeout(settle, 350));
+    }
     // Toasts on phones sit above the record dock, whose height changes with its contents.
     const dock = document.querySelector('#vBooth .dock');
     if (dock && window.ResizeObserver) {
