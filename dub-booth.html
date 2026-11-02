@@ -541,7 +541,7 @@ body.sheet-open { overflow: hidden; }
 
         <button class="line-box" type="button" id="lineBox" aria-label="Edit the line" hidden>
           <span class="line-char" id="lineChar" hidden></span>
-          <span class="line-text" id="lineText"></span>
+          <span class="line-text" id="lineText" dir="auto"></span>
         </button>
         <canvas class="rhythmo" id="cvRhythmo" aria-label="Rhythmo band: the words of the line scroll past the red line as they should be spoken" hidden></canvas>
 
@@ -646,13 +646,16 @@ body.sheet-open { overflow: hidden; }
           <p class="hint">A CSV or tab-separated file with columns for file name, line, character and note. A first row with column names is fine. A plain text file is read as one line per cue, in cue order.</p>
           <details class="more">
             <summary>Paste lines instead</summary>
-            <label class="field"><span>One line per cue, in cue order</span><textarea id="pasteLines" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
+            <label class="field"><span>One line per cue, in cue order</span><textarea id="pasteLines" dir="auto" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
             <button class="btn" type="button" id="bPasteLines">Use these lines</button>
           </details>
         </div>
         <div class="group-box">
           <h3>Transcribe the originals</h3>
-          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads about 100 MB.</p>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. Set the language below before you start. The first time, it downloads about 100 MB.</p>
+          <label class="field"><span>Language spoken in the originals</span>
+            <select id="asrLang"></select>
+          </label>
           <div class="row">
             <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
             <button class="btn small" type="button" id="bAsrOne">This cue only</button>
@@ -844,7 +847,7 @@ body.sheet-open { overflow: hidden; }
     </div>
     <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
     <datalist id="charList"></datalist>
-    <label class="field"><span>Line to say</span><textarea id="cueLine" rows="2" placeholder="What to say in this cue"></textarea></label>
+    <label class="field"><span>Line to say</span><textarea id="cueLine" dir="auto" rows="2" placeholder="What to say in this cue"></textarea></label>
     <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
     <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
     <button class="btn quiet danger-text" type="button" id="bDel" aria-label="Delete all takes for this cue">Delete all takes for this cue</button>
@@ -1200,7 +1203,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}',
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en',
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -3478,8 +3481,9 @@ registerProcessor('dub-tap', DubTap);
       : withLine ? `${withLine} of ${n} cues have a line${chars.length ? `, spoken by ${chars.length} character${chars.length === 1 ? '' : 's'}` : ''}.`
         : 'No lines yet. Import a script, paste lines, transcribe the originals, or type each cue’s line in the list below.';
     $('rhythmo').checked = S.settings.rhythmo;
+    $('asrLang').value = asrLang();
     $('charFolders').checked = S.settings.charFolders;
-    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines']) $(id).disabled = !n || !!A.asr;
+    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang']) $(id).disabled = !n || !!A.asr;
   }
   const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
   function refreshCharFilter() {
@@ -3588,6 +3592,40 @@ registerProcessor('dub-tap', DubTap);
   const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
   // The larger model first. A device that can't load it gets the smaller one, in a fresh worker.
   const ASR_MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
+  // The languages these Whisper models know, by the codes they take. The library can't tell which
+  // one is spoken (it would assume English), so the person picks it.
+  const ASR_LANGS = {
+    af: 'Afrikaans', sq: 'Albanian', am: 'Amharic', ar: 'Arabic', hy: 'Armenian', as: 'Assamese', az: 'Azerbaijani', ba: 'Bashkir',
+    eu: 'Basque', be: 'Belarusian', bn: 'Bengali', bs: 'Bosnian', br: 'Breton', bg: 'Bulgarian', my: 'Burmese', ca: 'Catalan',
+    zh: 'Chinese', hr: 'Croatian', cs: 'Czech', da: 'Danish', nl: 'Dutch', en: 'English', et: 'Estonian', fo: 'Faroese',
+    fi: 'Finnish', fr: 'French', gl: 'Galician', ka: 'Georgian', de: 'German', el: 'Greek', gu: 'Gujarati', ht: 'Haitian Creole',
+    ha: 'Hausa', haw: 'Hawaiian', he: 'Hebrew', hi: 'Hindi', hu: 'Hungarian', is: 'Icelandic', id: 'Indonesian', it: 'Italian',
+    ja: 'Japanese', jw: 'Javanese', kn: 'Kannada', kk: 'Kazakh', km: 'Khmer', ko: 'Korean', lo: 'Lao', la: 'Latin',
+    lv: 'Latvian', ln: 'Lingala', lt: 'Lithuanian', lb: 'Luxembourgish', mk: 'Macedonian', mg: 'Malagasy', ms: 'Malay', ml: 'Malayalam',
+    mt: 'Maltese', mi: 'Māori', mr: 'Marathi', mn: 'Mongolian', ne: 'Nepali', no: 'Norwegian', nn: 'Norwegian Nynorsk', oc: 'Occitan',
+    ps: 'Pashto', fa: 'Persian', pl: 'Polish', pt: 'Portuguese', pa: 'Punjabi', ro: 'Romanian', ru: 'Russian', sa: 'Sanskrit',
+    sr: 'Serbian', sn: 'Shona', sd: 'Sindhi', si: 'Sinhala', sk: 'Slovak', sl: 'Slovenian', so: 'Somali', es: 'Spanish',
+    su: 'Sundanese', sw: 'Swahili', sv: 'Swedish', tl: 'Tagalog', tg: 'Tajik', ta: 'Tamil', tt: 'Tatar', te: 'Telugu',
+    th: 'Thai', bo: 'Tibetan', tr: 'Turkish', tk: 'Turkmen', uk: 'Ukrainian', ur: 'Urdu', uz: 'Uzbek', vi: 'Vietnamese',
+    cy: 'Welsh', yi: 'Yiddish', yo: 'Yoruba',
+  };
+  const asrLang = () => (ASR_LANGS[S.settings.asrLang] ? S.settings.asrLang : 'en');
+  // Each language with its own name beside it where the browser knows it: "Japanese · 日本語".
+  function fillAsrLangs() {
+    const sel = $('asrLang');
+    const frag = document.createDocumentFragment();
+    for (const [code, name] of Object.entries(ASR_LANGS).sort((a, b) => a[1].localeCompare(b[1], 'en'))) {
+      const ic = code === 'jw' ? 'jv' : code; // Whisper's code for Javanese isn't the standard one
+      let own = '';
+      try { own = new Intl.DisplayNames([ic], { type: 'language' }).of(ic) || ''; } catch (_) { own = ''; }
+      const o = document.createElement('option');
+      o.value = code;
+      o.textContent = own && ![name.toLowerCase(), ic, code].includes(own.toLowerCase()) ? `${name} · ${own}` : name;
+      frag.append(o);
+    }
+    sel.textContent = '';
+    sel.append(frag);
+  }
   // The speech runtime asks for shared memory that can grow to 4 GB. iPhone and iPad Safari may
   // refuse to set that much aside, and these models need well under 1 GB, so there it gets 1 GB.
   const appleMobile = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -3624,7 +3662,7 @@ self.onmessage = async (e) => {
   const m = e.data;
   try { loading = loading || load(); await loading; } catch (err) { report(err.stage || 'model', m.id, err); return; }
   try {
-    const opts = { chunk_length_s: 30, stride_length_s: 5 };
+    const opts = { chunk_length_s: 30, stride_length_s: 5, language: m.language || 'en', task: 'transcribe' };
     let out = null;
     if (word) {
       try { out = await asr(m.audio, Object.assign({ return_timestamps: 'word' }, opts)); } catch (_) { word = false; }
@@ -3670,9 +3708,9 @@ self.onmessage = async (e) => {
     };
     return w;
   }
-  function asrRun(audio) {
+  function asrRun(audio, language) {
     const id = ++asrSeq;
-    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio }, [audio.buffer]); });
+    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio, language }, [audio.buffer]); });
   }
   // What went wrong, in words, with the browser's own message kept for reporting.
   function asrProblem(e) {
@@ -3708,15 +3746,16 @@ self.onmessage = async (e) => {
     $('asrBar').value = 0;
     renderScript();
     let done = 0, failed = null;
+    const lang = asrLang(), langName = ASR_LANGS[lang];
     for (const key of keys) {
       if (A.asr.stop) break;
-      $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}…`;
+      $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}, in ${langName}…`;
       try {
         const g = await getOriginal(key);
         const a16 = new Float32Array(resample(monoOf(g.buffer), g.buffer.sampleRate, 16000));
         let out;
         for (;;) {
-          try { out = await asrRun(a16.slice()); break; } catch (e) {
+          try { out = await asrRun(a16.slice(), lang); break; } catch (e) {
             // A model that won't load, or runs out of memory, makes way for the next one.
             const load = e.stage === 'model' || e.stage === 'worker' || (e.stage === 'run' && /memory|alloc|RangeError/i.test(e.message));
             if (A.asr.stop || !load || asrModel >= ASR_MODELS.length - 1) throw e;
@@ -3726,10 +3765,11 @@ self.onmessage = async (e) => {
           }
         }
         if (A.asr.stop) break;
-        const inf = cueInfo(key);
+        const inf = cueInfo(key), before = inf.asrText;
         inf.words = wordsOf(out);
         inf.asrText = String(out.text || '').trim();
-        if (!inf.line && inf.asrText) { inf.line = inf.asrText; inf.lineFromAsr = true; }
+        // A typed or imported line stays; one that only came from an earlier transcription is replaced.
+        if (inf.asrText && (!inf.line || inf.lineFromAsr || (before && inf.line === before))) { inf.line = inf.asrText; inf.lineFromAsr = true; }
         saveInfo();
         done++;
         $('asrBar').value = done / keys.length;
@@ -3748,7 +3788,7 @@ self.onmessage = async (e) => {
       const p = asrProblem(failed);
       $('asrText').textContent = done ? `Transcribed ${done} cue${done === 1 ? '' : 's'}, then stopped. ${p.long}` : p.long;
       toast(`Transcription stopped. ${p.short}`);
-    } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}.`;
+    } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}, in ${langName}.`;
   }
   function stopTranscribe() {
     if (!A.asr) return;
@@ -4523,7 +4563,7 @@ self.onmessage = async (e) => {
       const fn = document.createElement('span'); fn.textContent = k;
       nm.append(no, fn);
       const line = document.createElement('input');
-      line.type = 'text'; line.className = 'st-line'; line.value = inf.line || ''; line.placeholder = 'Line to say';
+      line.type = 'text'; line.className = 'st-line'; line.dir = 'auto'; line.value = inf.line || ''; line.placeholder = 'Line to say';
       line.setAttribute('aria-label', `Line for cue ${i + 1}, ${k}`);
       const ch = document.createElement('input');
       ch.type = 'text'; ch.className = 'st-char'; ch.value = inf.char || ''; ch.placeholder = 'Character';
@@ -4644,6 +4684,8 @@ self.onmessage = async (e) => {
     $('fmtDetected').hidden = s.fmt !== 'match';
   }
   function bindUI() {
+    fillAsrLangs();
+    $('asrLang').addEventListener('change', (e) => { S.settings.asrLang = e.target.value; saveMeta(true); });
     $('pick').addEventListener('change', (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; loadPicked(files); });
     $('bSample').addEventListener('click', loadSamples);
     $('bRec').addEventListener('click', onRec);
