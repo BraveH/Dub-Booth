@@ -1,0 +1,41 @@
+name: README check
+
+# The README is the user guide: a change to the app has to come with a change to it.
+# Write [docs not needed] in the pull request description for changes users won't notice.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: App changes come with README changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          changed="$(git diff --name-only "$BASE" "$HEAD")"
+          echo "Changed files:"
+          echo "$changed"
+          if ! echo "$changed" | grep -qxE 'dub-booth\.html|sw\.js|manifest\.webmanifest'; then
+            echo "The app itself didn't change."
+            exit 0
+          fi
+          if echo "$changed" | grep -qx 'README\.md'; then
+            echo "README.md was updated."
+            exit 0
+          fi
+          if printf '%s' "$BODY" | grep -qiF '[docs not needed]'; then
+            echo "The pull request says the README doesn't need to change."
+            exit 0
+          fi
+          echo "::error::The app changed but README.md didn't. Update the README (and the screenshots in docs/images if a screen changed), or write [docs not needed] in the pull request description."
+          exit 1

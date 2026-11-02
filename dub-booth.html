@@ -138,6 +138,7 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .cue-no .of { font-size: 16px; color: var(--muted); font-weight: 600; }
 .pill { font: 600 12px/1 var(--font-ui); padding: 7px 10px; border-radius: 999px; background: var(--well); color: var(--muted); white-space: nowrap; }
 .pill.done { background: var(--ok-soft); color: var(--ok); }
+.pill.kept { background: var(--well); color: var(--guide); }
 .cue-name { font: 500 14px/1.3 var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: -6px; }
 
 .lanes { position: relative; display: grid; gap: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -237,6 +238,7 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .done .ci-dot { background: var(--ok); border-color: var(--ok); }
 .redo .ci-dot { background: var(--rec); border-color: var(--rec); }
 .ok .ci-dot { background: var(--ok); border-color: var(--ok); border-radius: 3px; }
+.kept .ci-dot { background: var(--guide); border-color: var(--guide); border-radius: 3px; }
 .list-filter select { min-height: 36px; width: auto; font-size: 13px; padding: 0 8px; }
 /* cue marks and notes */
 .cue-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: -4px; }
@@ -318,7 +320,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
    Phone first. Each part of the app is its own view: Booth, Cues, Script, Export, Settings.
    A tab bar switches views: fixed at the bottom on phones, in the top bar from 1000px, where the
    cue list also sits beside the booth. The booth docks its play and record controls at the bottom. */
-:root { --tabbar: 60px; }
+:root { --tabbar: 61px; } /* the phone tab bar: 52px buttons, 4px padding above and below, a 1px border */
 .topbar {
   position: relative; z-index: 20; background: var(--bg);
   padding-top: calc(env(safe-area-inset-top, 0px) + 8px); padding-bottom: 8px; margin-bottom: 12px;
@@ -454,6 +456,9 @@ button.line-box:focus-visible { outline: 3px solid var(--guide); outline-offset:
 .rec.is-rec .rec-ico { width: 22px; height: 22px; }
 .rec-wrap .meter { width: 64px; height: 4px; }
 .compare { display: flex; justify-content: center; gap: 8px; }
+.chip-btn svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.vol-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 3.2em; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.vol-row output { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 999px) and (max-height: 700px) {
   .dock { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
   .dock .rec-status { font-size: 12.5px; }
@@ -672,6 +677,12 @@ body.sheet-open { overflow: hidden; }
           <div class="compare">
             <button class="chip-btn" type="button" id="bBoth" aria-pressed="false" aria-label="Play the original and your dub at the same time">Both at once</button>
             <button class="chip-btn" type="button" id="bAB" aria-pressed="false" aria-label="Play the original, then your dub">Back to back</button>
+            <button class="chip-btn quiet" type="button" id="bVolume" aria-expanded="false" aria-controls="volRow" aria-label="Playback volume"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 3.23v2.06A7 7 0 0 1 14 18.7v2.06A9 9 0 0 0 14 3.23z"/></svg><span id="volPct">100%</span></button>
+          </div>
+          <div class="vol-row" id="volRow" hidden>
+            <label for="playVol">Playback volume</label>
+            <input type="range" id="playVol" min="0" max="200" step="5" value="100" aria-describedby="volOut">
+            <output id="volOut" for="playVol">100%</output>
           </div>
         </div>
       </section>
@@ -689,6 +700,7 @@ body.sheet-open { overflow: hidden; }
             <option value="redo">Needs redo</option>
             <option value="open">Not approved yet</option>
             <option value="ok">Approved</option>
+            <option value="kept">Original kept</option>
           </select>
         </div>
         <ol class="cues" id="cues"></ol>
@@ -851,6 +863,8 @@ body.sheet-open { overflow: hidden; }
             </select>
           </label>
           <label class="check"><input type="checkbox" id="echo"> Echo cancellation (only when you can’t use headphones)</label>
+          <label class="check"><input type="checkbox" id="micNoise"> Noise cancellation: quieten steady background noise (fans, hum, traffic) while recording</label>
+          <p class="hint" id="micNoiseHint" hidden></p>
         </div>
         <div class="group-box">
           <h3>Recording part of a cue</h3>
@@ -929,6 +943,7 @@ body.sheet-open { overflow: hidden; }
       <button class="tag-btn redo" type="button" id="bStRedo" aria-pressed="false">Needs redo</button>
       <button class="tag-btn ok" type="button" id="bStOk" aria-pressed="false">Approved</button>
     </div>
+    <label class="check keep-check"><input type="checkbox" id="cueKeep"> <span><b>Keep the original</b> for this cue, for a song or anything else that isn’t dubbed. Export puts the original file in as it is.</span></label>
     <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
     <datalist id="charList"></datalist>
     <label class="field"><span>Line to say</span><textarea id="cueLine" dir="auto" rows="2" placeholder="What to say in this cue"></textarea></label>
@@ -1294,7 +1309,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
   // Shown in Settings and in the transcription log, to tell which copy of the app is running.
-  const APP_VERSION = '2026.11.02-9';
+  const APP_VERSION = '2026.11.02-10';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -1303,7 +1318,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'auto',
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'auto', micNoise: false, playVol: 1,
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -2371,8 +2386,21 @@ class DubTap extends AudioWorkletProcessor {
 registerProcessor('dub-tap', DubTap);
 `;
 
+  // Raw sound unless asked otherwise: echo and noise processing change the voice a little. Browsers
+  // without their own noise suppression (Safari on iPhone) get it from the phone's voice processing,
+  // which comes with echo cancellation.
+  const micSupports = (k) => { try { return !!(navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints && navigator.mediaDevices.getSupportedConstraints()[k]); } catch (_) { return false; } };
   function micConstraints() {
-    return { echoCancellation: !!S.settings.echo, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+    const noise = !!S.settings.micNoise, viaVoice = noise && !micSupports('noiseSuppression');
+    return { echoCancellation: !!S.settings.echo || viaVoice, noiseSuppression: noise, autoGainControl: false, channelCount: 1 };
+  }
+  function renderMicNoiseHint() {
+    const el = $('micNoiseHint');
+    if (!S.settings.micNoise) { el.hidden = true; return; }
+    el.hidden = false;
+    el.textContent = micSupports('noiseSuppression')
+      ? 'Takes recorded from now on are cleaned as they’re recorded. It can make a voice sound a little flatter, so leave it off in a quiet room.'
+      : 'This browser has no noise setting of its own, so the phone’s voice processing is used (it also turns echo cancellation on). On an iPhone you can make it stronger: while recording, open Control Center, tap Mic Mode and choose Voice Isolation.';
   }
   function micUnavailableReason() {
     if (!window.isSecureContext) return 'The microphone only works when this page is opened from an https:// address, or opened as a file on a computer.';
@@ -2395,10 +2423,24 @@ registerProcessor('dub-tap', DubTap);
       Promise.resolve(p).then(() => { clearTimeout(t); res(true); }, () => { clearTimeout(t); res(false); });
     });
   }
+  // Everything you hear (originals, dubs, count-in clicks) goes through A.out; its gain is the playback volume.
+  const playVol = () => Math.max(0, Math.min(2, Number(S.settings.playVol) || 0));
+  function renderPlayVol() {
+    const pct = Math.round(playVol() * 100);
+    $('playVol').value = String(pct);
+    $('volOut').textContent = `${pct}%`;
+    $('volPct').textContent = `${pct}%`;
+  }
+  function setPlayVol(v) {
+    S.settings.playVol = Math.max(0, Math.min(2, v));
+    if (A.out && A.ctx) { try { A.out.gain.setTargetAtTime(S.settings.playVol, A.ctx.currentTime, 0.02); } catch (_) { A.out.gain.value = S.settings.playVol; } }
+    renderPlayVol();
+  }
   function makeCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); } catch (_) { A.ctx = new AC(); }
     A.out = A.ctx.createGain();
+    A.out.gain.value = playVol();
     A.out.connect(A.ctx.destination);
     CUR.compBuf = null; CUR.compSig = ''; // buffers belong to the old context
     return A.ctx;
@@ -3135,7 +3177,8 @@ registerProcessor('dub-tap', DubTap);
     const ti = t ? peekTake(key, t.id) : {};
     $('bStRedo').setAttribute('aria-pressed', String(i.status === 'redo'));
     $('bStOk').setAttribute('aria-pressed', String(i.status === 'ok'));
-    $('bCueMenu').classList.toggle('has-note', !!(i.note || ti.note || i.line || i.char || i.status));
+    $('cueKeep').checked = !!i.keep;
+    $('bCueMenu').classList.toggle('has-note', !!(i.note || ti.note || i.line || i.char || i.status || i.keep));
     $('bCueMenu').disabled = !key;
     $('sheetTitle').textContent = key ? `Cue ${pad3(S.idx + 1)} · ${key}` : 'Cue';
     if (document.activeElement !== $('cueNote')) $('cueNote').value = i.note || '';
@@ -3173,24 +3216,26 @@ registerProcessor('dub-tap', DubTap);
     $('cueOf').textContent = ' / ' + n;
     $('cueName').textContent = key || '';
     $('cueName').title = key || '';
-    const pill = $('cueState');
-    pill.textContent = has ? 'Dubbed' : 'No take yet';
-    pill.classList.toggle('done', has);
+    const pill = $('cueState'), kept = !!(key && (S.info.get(key) || {}).keep);
+    pill.textContent = kept ? 'Original kept' : has ? 'Dubbed' : 'No take yet';
+    pill.classList.toggle('done', has && !kept);
+    pill.classList.toggle('kept', kept);
     $('durGuide').textContent = CUR.guide ? fmtSec(CUR.guide.dur) : '';
     const d = dubEnd(CUR.cue);
     $('durTake').textContent = d > 0 ? fmtSec(d) : '';
   }
+  const isKept = (k) => !!(S.info.get(k) || {}).keep;
   function renderProgress() {
-    const n = S.keys.length, d = S.keys.filter((k) => S.takes.has(k)).length;
+    const n = S.keys.length, kp = S.keys.filter(isKept).length, d = S.keys.filter((k) => S.takes.has(k) && !isKept(k)).length, all = d + kp;
     $('prog').hidden = !n;
-    $('progNum').textContent = `${d} / ${n} dubbed`;
-    $('progBar').style.width = n ? `${(d / n) * 100}%` : '0';
-    $('toplineBar').style.width = n ? `${(d / n) * 100}%` : '0';
-    $('listCount').textContent = n ? `${d} of ${n} dubbed` : '';
-    $('expSummary').textContent = d
-      ? `${d} of ${n} cues have a dub. Each one is saved with its original’s file name.`
+    $('progNum').textContent = kp ? `${all} / ${n} done` : `${d} / ${n} dubbed`;
+    $('progBar').style.width = n ? `${(all / n) * 100}%` : '0';
+    $('toplineBar').style.width = n ? `${(all / n) * 100}%` : '0';
+    $('listCount').textContent = n ? (kp ? `${d} dubbed, ${kp} kept, of ${n}` : `${d} of ${n} dubbed`) : '';
+    $('expSummary').textContent = all
+      ? `${d} of ${n} cues have a dub${kp ? `, and ${kp} keep${kp === 1 ? 's' : ''} ${kp === 1 ? 'its' : 'their'} original` : ''}. Each file is saved with its original’s name.`
       : 'No dubs yet. Record a cue and it will show up here.';
-    $('bExport').disabled = !d;
+    $('bExport').disabled = !all;
     $('bClear').disabled = !S.hasRec.size;
   }
   // The take lane shows once there is something to choose from: several takes, or one take that
@@ -3816,7 +3861,7 @@ registerProcessor('dub-tap', DubTap);
   const asrLang = () => (ASR_LANGS[S.settings.asrLang] ? S.settings.asrLang : 'en');
   // A cue counts as done once it has been transcribed in the chosen language.
   const asrDone = (k, lang) => { const i = S.info.get(k); return !!(i && i.asrLang === lang && typeof i.asrText === 'string'); };
-  const asrLeft = () => { const lang = asrLang(); return S.keys.filter((k) => !asrDone(k, lang)); };
+  const asrLeft = () => { const lang = asrLang(); return S.keys.filter((k) => !asrDone(k, lang) && !(S.info.get(k) || {}).keep); };
   // ---------- the language picker: a sheet with a search field ----------
   // Every language once, sorted by its English name, with its own name where the browser knows it.
   const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
@@ -4499,14 +4544,15 @@ self.onmessage = async (e) => {
       li.classList.toggle('redo', inf.status === 'redo');
       li.classList.toggle('ok', inf.status === 'ok');
       li.classList.toggle('cur', i === S.idx);
-      const show = f === 'all' || (f === 'left' && !done) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok') || (f.startsWith('char:') && (inf.char || '').trim() === f.slice(5));
+      li.classList.toggle('kept', !!inf.keep);
+      const show = f === 'all' || (f === 'kept' && !!inf.keep) || (f === 'left' && !done && !inf.keep) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok') || (f.startsWith('char:') && (inf.char || '').trim() === f.slice(5));
       const chEl = b.querySelector('.ci-char');
       if (chEl) chEl.textContent = inf.char ? `· ${inf.char}` : '';
       const hit = !q || [k, inf.line, inf.char, inf.note].some((v) => v && String(v).toLowerCase().includes(q));
       li.hidden = !(show && hit) && i !== S.idx; // the cue you're on stays in the list
       if (i === S.idx) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
       const mark = inf.status === 'redo' ? ', needs redo' : inf.status === 'ok' ? ', approved' : '';
-      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}${inf.char ? `, ${inf.char}` : ''}, ${done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
+      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}${inf.char ? `, ${inf.char}` : ''}, ${inf.keep ? 'original kept' : done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
       b.title = [inf.line, inf.note].filter(Boolean).join(' · ');
     }
   }
@@ -4664,10 +4710,11 @@ self.onmessage = async (e) => {
   let lastExport = [];
   async function exportZip() {
     if (A.rec) { toast('Stop recording first.'); return; }
-    const keys = S.keys.filter((k) => S.takes.has(k));
+    const keys = S.keys.filter((k) => isKept(k) || S.takes.has(k));
     if (!keys.length) { toast('Record at least one take first.'); return; }
     stopPlayback();
     const btn = $('bExport'), bar = $('expBar'), txt = $('expText');
+    let kept = 0;
     btn.disabled = true;
     $('expReady').hidden = true;
     $('expProg').hidden = false;
@@ -4679,10 +4726,22 @@ self.onmessage = async (e) => {
       for (let i = 0; i < keys.length; i++) {
         txt.textContent = `Encoding ${i + 1} of ${keys.length}…`;
         bar.value = (i / keys.length) * 0.92;
+        const who = S.settings.charFolders ? ((S.info.get(keys[i]) || {}).char || '').replace(/[\\/:*?"<>|]/g, '').trim() : '';
+        if (isKept(keys[i])) { // the original, byte for byte, under the name a dub would have had
+          let ab = S.mem.get(keys[i]) || (await store.get('originals', keys[i]));
+          if (ab && typeof Blob !== 'undefined' && ab instanceof Blob) ab = await ab.arrayBuffer();
+          if (!ab) continue;
+          const ext = (/\.([^.]+)$/.exec(keys[i]) || [, 'mp3'])[1].toLowerCase();
+          const name = (who ? who + '/' : '') + outName(keys[i], ext, used, who);
+          zip.file(name, ab, { binary: true, compression: 'STORE' });
+          done.push({ key: keys[i], name, kept: true, ext });
+          kept++;
+          await sleep(0);
+          continue;
+        }
         const cue = await getCue(keys[i]);
         if (!cue || !cue.clips.length) continue;
         const r = await encodeCue(keys[i], cue, lame);
-        const who = S.settings.charFolders ? ((S.info.get(keys[i]) || {}).char || '').replace(/[\\/:*?"<>|]/g, '').trim() : '';
         const name = (who ? who + '/' : '') + outName(keys[i], r.ext, used, who);
         zip.file(name, r.bytes, { binary: true, compression: 'STORE' });
         done.push({ key: keys[i], name, sr: r.sr, ch: r.ch, kbps: r.kbps, n: r.n, matched: r.matched, ext: r.ext });
@@ -4714,7 +4773,8 @@ self.onmessage = async (e) => {
       let canShare = false;
       try { canShare = !!(navigator.canShare && navigator.canShare({ files: [lastZip] })); } catch (_) { canShare = false; }
       $('bShare').hidden = !canShare;
-      $('expNote').textContent = exportNote(done, !!lame) + (alts ? ` Plus ${alts} alternate take${alts === 1 ? '' : 's'}.` : '') + (S.settings.cueSheet ? ' The cue sheet is cue-sheet.csv.' : '');
+      const dubs = done.filter((d) => !d.kept);
+      $('expNote').textContent = (dubs.length ? exportNote(dubs, !!lame) : '') + (kept ? ` ${dubs.length ? 'Plus' : 'Only'} ${kept} original${kept === 1 ? '' : 's'} kept as ${kept === 1 ? 'it is' : 'they are'}.` : '') + (alts ? ` Plus ${alts} alternate take${alts === 1 ? '' : 's'}.` : '') + (S.settings.cueSheet ? ' The cue sheet is cue-sheet.csv.' : '');
       lastExport = done;
       $('expReady').hidden = false;
     } catch (e) {
@@ -4733,7 +4793,7 @@ self.onmessage = async (e) => {
     for (let i = 0; i < S.keys.length; i++) {
       const k = S.keys[i], inf = S.info.get(k) || {}, cue = S.hasRec.has(k) ? await getCue(k) : null, d = byKey.get(k);
       const tk = inf.tk || {}, takes = cue ? cue.takes : [];
-      rows.push([pad3(i + 1), k, d ? d.name : '', inf.char || '', inf.line || '', inf.status === 'ok' ? 'Approved' : inf.status === 'redo' ? 'Needs redo' : '', inf.note || '',
+      rows.push([pad3(i + 1), k, d ? d.name : '', inf.char || '', inf.line || '', [inf.keep ? 'Original kept' : '', inf.status === 'ok' ? 'Approved' : inf.status === 'redo' ? 'Needs redo' : ''].filter(Boolean).join('; '), inf.note || '',
         cue && cue.clips.length ? dubEnd(cue).toFixed(2) : '', takes.length || '',
         takes.filter((t) => (tk[t.id] || {}).star).map((t) => t.n).join(' '),
         takes.filter((t) => (tk[t.id] || {}).note).map((t) => `Take ${t.n}: ${tk[t.id].note}`).join('; ')]);
@@ -4749,6 +4809,7 @@ self.onmessage = async (e) => {
     const matched = done.filter((d) => d.matched).length;
     if (S.settings.fmt !== 'match') return `${n} MP3 file${s}${what}.`;
     if (matched === n) return `${n} MP3 file${s}, each in the same format as its original${what}.`;
+    if (n === 1) return `1 MP3 file${what}. Its original isn’t MP3, so it uses the settings above.`;
     return `${n} MP3 files. ${matched} match their originals; ${n - matched} use the settings above because their originals aren’t MP3.`;
   }
 
@@ -5141,6 +5202,9 @@ self.onmessage = async (e) => {
     $('countIn').checked = s.countIn;
     $('autoPlay').value = s.autoPlay;
     $('echo').checked = s.echo;
+    $('micNoise').checked = !!s.micNoise;
+    renderMicNoiseHint();
+    renderPlayVol();
     $('preRoll').value = String(s.preRoll);
     $('duck').value = s.duck;
     $('punchStop').checked = s.punchStop;
@@ -5258,6 +5322,12 @@ self.onmessage = async (e) => {
       saveInfo(); renderTags(); updateList();
     };
     $('bStRedo').addEventListener('click', () => markCue('redo'));
+    $('cueKeep').addEventListener('change', (e) => {
+      if (!CUR.key) return;
+      const i = cueInfo(CUR.key);
+      if (e.target.checked) { i.keep = true; picks().delete(CUR.key); } else delete i.keep; // a kept cue needs no transcribing
+      saveInfo(); renderTags(); renderAll(); renderStatus(); renderScript();
+    });
     $('cueLine').addEventListener('input', (e) => {
       if (!CUR.key) return;
       const inf = cueInfo(CUR.key);
@@ -5336,6 +5406,21 @@ self.onmessage = async (e) => {
       const tr = A.stream && A.stream.getAudioTracks()[0];
       if (!tr || !tr.applyConstraints) return;
       try { await tr.applyConstraints(micConstraints()); toast(S.settings.echo ? 'Echo cancellation is on.' : 'Echo cancellation is off.'); }
+      catch (_) { toast('Reload the page for this change to take effect.'); }
+    });
+    $('bVolume').addEventListener('click', () => {
+      const open = $('volRow').hidden;
+      $('volRow').hidden = !open;
+      $('bVolume').setAttribute('aria-expanded', String(open));
+      if (open) $('playVol').focus();
+    });
+    $('playVol').addEventListener('input', (e) => setPlayVol(Number(e.target.value) / 100));
+    $('playVol').addEventListener('change', () => saveMeta(true));
+    bindCheck('micNoise', 'micNoise', async () => {
+      renderMicNoiseHint();
+      const tr = A.stream && A.stream.getAudioTracks()[0];
+      if (!tr || !tr.applyConstraints) return;
+      try { await tr.applyConstraints(micConstraints()); toast(S.settings.micNoise ? 'Noise cancellation is on.' : 'Noise cancellation is off.'); }
       catch (_) { toast('Reload the page for this change to take effect.'); }
     });
     $('preRoll').addEventListener('change', (e) => { S.settings.preRoll = Number(e.target.value); saveMeta(true); renderStatus(); });

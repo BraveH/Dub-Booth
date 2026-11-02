@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" width="960" height="380" role="img" aria-labelledby="t d">
+  <title id="t">What goes in the export</title>
+  <desc id="d">A dubbed cue becomes a file named and encoded like its original. A cue marked "keep the original" goes in as the original file, unchanged. A cue with no take is left out. Character folders, alternates and a cue sheet are optional.</desc>
+  <style>
+    .f { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .m { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    .h { font-weight: 700; font-size: 20px; fill: #121821; }
+    .sub { font-size: 14px; fill: #566173; }
+    .card { fill: #ffffff; stroke: #d2d9e1; stroke-width: 1.5; }
+    .ct { font-size: 14px; font-weight: 700; fill: #121821; }
+    .cs { font-size: 12.5px; fill: #566173; }
+    .file { font-size: 14px; fill: #121821; }
+    .why { font-size: 12.5px; fill: #566173; }
+    .arr { fill: none; stroke: #9aa5b4; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <rect x="0" y="0" width="960" height="380" rx="18" fill="#edf0f3"/>
+  <text class="f h" x="28" y="42">What goes in the export</text>
+  <text class="f sub" x="28" y="64">One zip. Every file keeps its original’s name (or the pattern you set), so the folder drops straight back into your project.</text>
+
+  <!-- cues -->
+  <rect class="card" x="28" y="92" width="260" height="58" rx="12"/>
+  <circle cx="52" cy="121" r="7" fill="#1c7d45"/>
+  <text class="f ct" x="70" y="116"><tspan class="m">001</tspan>  0001.mp3</text>
+  <text class="f cs" x="70" y="136">Dubbed · Approved</text>
+
+  <rect class="card" x="28" y="162" width="260" height="58" rx="12"/>
+  <rect x="45" y="184" width="14" height="14" rx="3" fill="#22708f"/>
+  <text class="f ct" x="70" y="186"><tspan class="m">002</tspan>  0002.mp3</text>
+  <text class="f cs" x="70" y="206">Original kept (a song)</text>
+
+  <rect class="card" x="28" y="232" width="260" height="58" rx="12"/>
+  <circle cx="52" cy="261" r="6" fill="none" stroke="#9aa5b4" stroke-width="2.5"/>
+  <text class="f ct" x="70" y="256"><tspan class="m">003</tspan>  0003.mp3</text>
+  <text class="f cs" x="70" y="276">No take yet</text>
+
+  <path class="arr" d="M288 121 C 330 121, 330 128, 372 128 m-7 -7 l7 7 l-7 7"/>
+  <path class="arr" d="M288 191 C 330 191, 330 158, 372 158 m-7 -7 l7 7 l-7 7"/>
+  <path class="arr" d="M288 261 h40" stroke-dasharray="4 4"/>
+  <text class="f cs" x="292" y="284">left out</text>
+
+  <!-- the zip -->
+  <rect class="card" x="378" y="92" width="554" height="222" rx="14"/>
+  <path d="M398 108 h22 l6 7 h26 v20 h-54 z" fill="#b25d05" opacity="0.85"/>
+  <text class="f ct" x="462" y="127">dubbed-takes-2.zip</text>
+  <g class="m file">
+    <text x="410" y="160">├ 0001.mp3</text>
+    <text x="410" y="190">├ 0002.mp3</text>
+    <text x="410" y="220">├ Anna/…</text>
+    <text x="410" y="250">├ alternates/…</text>
+    <text x="410" y="280">└ cue-sheet.csv</text>
+  </g>
+  <g class="f why">
+    <text x="574" y="160">your dub, in the original’s format</text>
+    <text x="574" y="190">the original file, byte for byte</text>
+    <text x="574" y="220">optional: a folder per character</text>
+    <text x="574" y="250">optional: every take on its own</text>
+    <text x="574" y="280">optional: lines, characters, marks, notes</text>
+  </g>
+
+  <g class="f cs">
+    <text x="28" y="340" fill="#121821" font-weight="700">The sound of each dub</text>
+    <text x="28" y="362">Optional noise reduction, tone match to the original and room tone between clips; volume matched to the original, evened out, or left as recorded.</text>
+  </g>
+</svg>
