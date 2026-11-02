@@ -254,7 +254,26 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .cur .ci-name { font-weight: 700; }
 .ci-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); }
 .done .ci-dot { background: var(--ok); border-color: var(--ok); }
-.cues.only-left li.done { display: none; }
+.redo .ci-dot { background: var(--rec); border-color: var(--rec); }
+.ok .ci-dot { background: var(--ok); border-color: var(--ok); border-radius: 3px; }
+.list-filter select { min-height: 36px; width: auto; font-size: 13px; padding: 0 8px; }
+/* cue marks and notes */
+.cue-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.tag-btn {
+  min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  font: 600 13px/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; touch-action: manipulation;
+}
+.tag-btn[aria-pressed="true"].redo { background: var(--rec-soft); border-color: var(--rec); color: var(--rec); }
+.tag-btn[aria-pressed="true"].ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.tag-btn.has-note { color: var(--ink); }
+.tag-btn.has-note::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+.tag-btn[disabled] { opacity: 0.45; cursor: default; }
+.tag-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+.note-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px) { .note-row { grid-template-columns: 1fr 1fr; } }
+/* streamer: sweeps across the lanes into each take */
+.streamer { position: absolute; top: 0; bottom: 24px; left: 0; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--rec); box-shadow: 0 0 14px var(--rec); z-index: 3; pointer-events: none; will-change: transform; }
+.streamer.hit { width: auto; right: 0; margin: 0; border-radius: 12px; background: var(--rec-soft); box-shadow: none; transform: none !important; }
 
 /* forms */
 .check { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.35; cursor: pointer; }
@@ -340,6 +359,15 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <span class="pill" id="cueState">No take yet</span>
         </div>
         <div class="cue-name" id="cueName"></div>
+        <div class="cue-tags">
+          <button class="tag-btn redo" type="button" id="bStRedo" aria-pressed="false">Needs redo</button>
+          <button class="tag-btn ok" type="button" id="bStOk" aria-pressed="false">Approved</button>
+          <button class="tag-btn" type="button" id="bNoteT" aria-expanded="false" aria-controls="noteRow">Notes</button>
+        </div>
+        <div class="note-row" id="noteRow" hidden>
+          <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
+          <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
+        </div>
 
         <div class="lanes" id="lanes">
           <div class="lane" data-lane="orig">
@@ -352,6 +380,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <div class="lane take-lane" data-lane="take" id="takeLane" hidden>
             <span class="lane-lbl"><i class="sw take"></i><span id="takeLbl">Take</span></span>
             <div class="lane-acts">
+              <button class="lane-btn" type="button" id="bTakeStar" aria-pressed="false" aria-label="Star this take">☆</button>
               <button class="lane-btn" type="button" id="bTakePlay" aria-label="Play this take" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
               <button class="lane-btn" type="button" id="bTakeUse">Use all</button>
               <button class="lane-btn" type="button" id="bTakeDel">Delete</button>
@@ -365,6 +394,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           </div>
           <canvas class="ruler" id="cvRuler" data-lane="ruler" aria-hidden="true"></canvas>
           <div class="countdown" id="countdown" aria-live="assertive" hidden>3</div>
+          <div class="streamer" id="streamer" hidden></div>
         </div>
         <div class="view-row">
           <div class="btn-pair">
@@ -383,6 +413,8 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <p class="clip-text"><span id="clipText" aria-live="polite"></span><button class="link-btn" type="button" id="bClipReset" hidden>Reset</button></p>
           <button class="btn small" type="button" id="bNudgeR" aria-label="Move 10 milliseconds later">10 ms ›</button>
           <div class="clip-acts">
+            <button class="btn small" type="button" id="bAlign" aria-label="Line up with the original">Line up</button>
+            <button class="btn small" type="button" id="bFit" aria-label="Fit the clip to the selection: stretch or squeeze it to fill it" title="Stretch or squeeze the clip to fill the selection">Fit</button>
             <button class="btn small" type="button" id="bSplit" aria-label="Split the clip at the start point">Split</button>
             <button class="btn small quiet" type="button" id="bClipDel">Delete clip</button>
           </div>
@@ -417,7 +449,13 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
         <section class="panel" aria-label="All cues">
           <div class="panel-head">
             <h2>Cues <span class="h2-sub" id="listCount"></span></h2>
-            <label class="check"><input type="checkbox" id="onlyLeft"> Remaining only</label>
+            <label class="list-filter"><select id="listFilter" aria-label="Show cues">
+              <option value="all">All cues</option>
+              <option value="left">Not dubbed yet</option>
+              <option value="redo">Needs redo</option>
+              <option value="open">Not approved yet</option>
+              <option value="ok">Approved</option>
+            </select></label>
           </div>
           <ol class="cues" id="cues"></ol>
         </section>
@@ -503,6 +541,19 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           </select>
         </label>
         <label class="check"><input type="checkbox" id="punchStop"> Stop recording at the end of a selection</label>
+        <label class="check"><input type="checkbox" id="loop"> Loop a selection: record pass after pass, each one a new take, until you tap stop</label>
+        <label class="check"><input type="checkbox" id="streamerOn"> Show a streamer that sweeps across the lanes as you come in</label>
+        <label class="field"><span>Line up moves</span>
+          <select id="alignMode">
+            <option value="clip">The whole clip</option>
+            <option value="phrase">Each phrase on its own</option>
+          </select>
+        </label>
+        <div class="field">
+          <span>Sync calibration</span>
+          <p class="hint" id="latText"></p>
+          <div class="row"><button class="btn small" type="button" id="bLatency">Measure this device</button><button class="link-btn" type="button" id="bLatReset" hidden>Use the estimate</button></div>
+        </div>
         <label class="field"><span>After each take, play</span>
           <select id="autoPlay">
             <option value="off">Nothing</option>
@@ -526,7 +577,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
       </section>
     </div>
 
-    <p class="foot muted">Takes are saved in this browser as you go. With a keyboard: Space records or stops, O plays the original, T your dub, P the selected take, B both at once, A back to back, the arrow keys change cue, [ ] nudge by 10 ms ({ } by 1 ms), S splits a clip, Delete removes it, + and − zoom, Esc clears the selection, and ⌘Z or Ctrl+Z undoes.</p>
+    <p class="foot muted">Takes are saved in this browser as you go. With a keyboard: Space records or stops, O plays the original, T your dub, P the selected take, B both at once, A back to back, the arrow keys change cue, [ ] nudge by 10 ms ({ } by 1 ms), L lines up, S splits a clip, Delete removes it, + and − zoom, Esc clears the selection, and ⌘Z or Ctrl+Z undoes.</p>
   </div>
 </div>
 
@@ -878,14 +929,14 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
-    preRoll: 2, punchStop: true, duck: 'full',
+    preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', suffix: '', trim: false,
   };
 
   // S.takes holds the cues that have a dub; S.hasRec the cues with anything saved (takes or a dub).
   const S = {
     keys: [], idx: 0, takes: new Set(), hasRec: new Set(), settings: { ...DEFAULTS },
-    mem: new Map(), orig: new Map(), origPending: new Map(), cues: new Map(), pcm: new Map(), hist: new Map(),
+    mem: new Map(), orig: new Map(), origPending: new Map(), cues: new Map(), pcm: new Map(), hist: new Map(), info: new Map(),
     probe: new Map(), view: 0, nonMp3: 0,
   };
   // The cue on screen: its original, its takes and dub, and what is selected in the lanes.
@@ -974,6 +1025,15 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function writeMeta() { metaTimer = 0; store.put('meta', 'session', { keys: S.keys, idx: S.idx, settings: S.settings, dubbed: [...S.takes] }); }
   function saveMeta(now) { clearTimeout(metaTimer); if (now) writeMeta(); else metaTimer = setTimeout(writeMeta, 250); }
   function flushMeta() { if (metaTimer) { clearTimeout(metaTimer); writeMeta(); } }
+  // Marks and notes, kept apart from the takes so undo never touches them:
+  // cue key -> { status: 'redo' | 'ok', note, tk: { take id: { star, note } } }
+  function cueInfo(key) { let i = S.info.get(key); if (!i) { i = {}; S.info.set(key, i); } return i; }
+  function takeInfo(key, id) { const i = cueInfo(key); if (!i.tk) i.tk = {}; return i.tk[id] || (i.tk[id] = {}); }
+  const peekTake = (key, id) => { const i = S.info.get(key); return (i && i.tk && i.tk[id]) || {}; };
+  let infoTimer = 0;
+  function writeInfo() { infoTimer = 0; const o = {}; for (const [k, v] of S.info) o[k] = v; store.put('meta', 'info', o); }
+  function saveInfo() { clearTimeout(infoTimer); infoTimer = setTimeout(writeInfo, 400); }
+  function flushInfo() { if (infoTimer) { clearTimeout(infoTimer); writeInfo(); } }
 
   // ---------- audio analysis ----------
   let DEC = null;
@@ -1416,7 +1476,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const PCM_CACHE = 96e6; // bytes of take audio kept in memory
   const newCue = () => ({ v: 2, n: 0, cn: 0, takes: [], clips: [] });
   const clipStart = (c) => c.in + c.off;
-  const clipEnd = (c) => c.out + c.off;
+  const clipEnd = (c) => c.in + c.off + (c.out - c.in) * (c.k || 1);
+  // A clip may be stretched (k > 1) or squeezed (k < 1) in time; this maps dub time to take time.
+  const tauOf = (c, u) => c.in + (u - (c.in + c.off)) / (c.k || 1);
   const takeById = (cue, id) => (cue && cue.takes.find((t) => t.id === id)) || null;
   const takeSpan = (t) => ({ a: -t.zero / t.sr, b: (t.len - t.zero) / t.sr });
   const dubEnd = (cue) => (cue && cue.clips.length ? Math.max(0, ...cue.clips.map(clipEnd)) : 0);
@@ -1531,7 +1593,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       const s = clipStart(c), e = clipEnd(c);
       const j0 = Math.max(0, Math.floor((s - h) * sr)), j1 = Math.min(out.length, Math.ceil((e + h) * sr));
       const weight = (u) => (u <= s - h || u >= e + h ? 0 : u < s + h ? (u - (s - h)) / XF : u > e - h ? (e + h - u) / XF : 1);
-      if (t.sr === sr) {
+      const k = c.k || 1;
+      if (t.sr === sr && k === 1) {
         for (let j = j0; j < j1; j++) {
           const u = j / sr, w = weight(u);
           if (w <= 0) continue;
@@ -1539,13 +1602,16 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
           if (fi >= 0 && fi < a.length) out[j] += w * (a[fi] / 32768);
         }
       } else {
-        // A take recorded at another rate (on another device): resample the stretch this clip uses.
-        const fa = Math.max(0, Math.floor(t.zero + (s - h - c.off) * t.sr) - 64);
-        const fb = Math.min(a.length, Math.ceil(t.zero + (e + h - c.off) * t.sr) + 64);
+        // A take recorded at another rate (on another device), or a stretched clip: prepare the
+        // stretch of audio this clip uses (resampled, then time-stretched without changing pitch).
+        const m = 0.03, fa = Math.max(0, Math.floor(t.zero + (tauOf(c, s - h) - m) * t.sr));
+        const fb = Math.min(a.length, Math.ceil(t.zero + (tauOf(c, e + h) + m) * t.sr));
         if (fb <= fa) continue;
-        const seg = new Float32Array(fb - fa);
-        for (let i = 0; i < seg.length; i++) seg[i] = a[fa + i] / 32768;
-        const rs = resample(seg, t.sr, sr), base = (fa - t.zero) / t.sr + c.off;
+        let rs = new Float32Array(fb - fa);
+        for (let i = 0; i < rs.length; i++) rs[i] = a[fa + i] / 32768;
+        if (t.sr !== sr) rs = resample(rs, t.sr, sr);
+        if (k !== 1) rs = stretchAudio(rs, sr, k);
+        const base = clipStart(c) + ((fa - t.zero) / t.sr - c.in) * k; // dub time of rs[0]
         for (let j = j0; j < j1; j++) {
           const u = j / sr, w = weight(u);
           if (w <= 0) continue;
@@ -1567,8 +1633,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       const cs = clipStart(c), ce = clipEnd(c);
       if (c.id === keepId || ce <= s + 1e-6 || cs >= e - 1e-6) { out.push(c); continue; }
       const left = cs < s - MIN_CLIP / 2, right = ce > e + MIN_CLIP / 2;
-      if (left) out.push({ ...c, out: s - c.off });
-      if (right) out.push({ ...c, id: left ? nextClipId(cue) : c.id, in: e - c.off });
+      if (left) out.push({ ...c, out: tauOf(c, s) });
+      if (right) { const tau = tauOf(c, e); out.push({ ...c, id: left ? nextClipId(cue) : c.id, in: tau, off: e - tau }); }
     }
     cue.clips = out;
     sortClips(cue);
@@ -1588,17 +1654,65 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   }
   function wholeClip(cue, t) { const sp = takeSpan(t); return { id: nextClipId(cue), take: t.id, in: sp.a, out: sp.b, off: t.off || 0 }; }
   function trimClipTo(cue, c, edge, u) {
-    const t = takeById(cue, c.take), sp = t ? takeSpan(t) : { a: c.in, b: c.out };
-    if (edge === 'l') c.in = clamp(u - c.off, Math.min(sp.a, c.in), c.out - MIN_CLIP);
-    else c.out = clamp(u - c.off, c.in + MIN_CLIP, Math.max(sp.b, c.out));
+    const t = takeById(cue, c.take), sp = t ? takeSpan(t) : { a: c.in, b: c.out }, k = c.k || 1;
+    if (edge === 'l') {
+      const tau = clamp(tauOf(c, u), Math.min(sp.a, c.in), c.out - MIN_CLIP / k), start = clipStart(c) + (tau - c.in) * k;
+      c.in = tau; c.off = start - tau;
+    } else c.out = clamp(tauOf(c, u), c.in + MIN_CLIP / k, Math.max(sp.b, c.out));
   }
   function splitClipAt(cue, c, u) {
     if (u <= clipStart(c) + MIN_CLIP || u >= clipEnd(c) - MIN_CLIP) return null;
-    const c2 = { ...c, id: nextClipId(cue), in: u - c.off };
-    c.out = u - c.off;
+    const tau = tauOf(c, u), c2 = { ...c, id: nextClipId(cue), in: tau, off: u - tau };
+    c.out = tau;
     cue.clips.push(c2);
     sortClips(cue);
     return c2;
+  }
+  // After several clips moved at once: where one runs into the next, the earlier one is trimmed.
+  function fixOverlaps(cue) {
+    sortClips(cue);
+    const out = [];
+    for (const c of cue.clips) {
+      const prev = out[out.length - 1];
+      if (prev && clipEnd(prev) > clipStart(c) + 1e-6) {
+        prev.out = tauOf(prev, clipStart(c));
+        if (clipEnd(prev) - clipStart(prev) < MIN_CLIP) out.pop();
+      }
+      out.push(c);
+    }
+    cue.clips = out;
+  }
+  // Time-stretches audio by k (k > 1 longer) without changing its pitch: overlap-add of short
+  // windows, each nudged to where it best continues the previous one (WSOLA).
+  function stretchAudio(x, sr, k) {
+    if (Math.abs(k - 1) < 1e-4 || x.length < 64) return x;
+    const N = Math.max(64, Math.round(sr * 0.03) & ~1), Hs = N / 2, Ha = Hs / k, tol = Math.round(sr * 0.008);
+    const win = new Float32Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N);
+    const outLen = Math.round(x.length * k), y = new Float32Array(outLen + N), wsum = new Float32Array(outLen + N);
+    const maxP = Math.max(0, x.length - N);
+    let prev = 0;
+    for (let m = 0; m * Hs < outLen; m++) {
+      let p = Math.min(maxP, Math.round(m * Ha));
+      if (m > 0) {
+        const nat = Math.min(maxP, prev + Hs);
+        let best = p, bc = -Infinity;
+        for (let d = -tol; d <= tol; d += 2) {
+          const q = p + d;
+          if (q < 0 || q > maxP) continue;
+          let cc = 0;
+          for (let i = 0; i < Hs; i += 4) cc += x[q + i] * x[nat + i];
+          if (cc > bc) { bc = cc; best = q; }
+        }
+        p = best;
+      }
+      const o = m * Hs;
+      for (let i = 0; i < N && p + i < x.length; i++) { y[o + i] += x[p + i] * win[i]; wsum[o + i] += win[i]; }
+      prev = p;
+    }
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) out[i] = wsum[i] > 1e-3 ? y[i] / wsum[i] : 0;
+    return out;
   }
 
   // ---------- undo and redo ----------
@@ -1838,8 +1952,8 @@ registerProcessor('dub-tap', DubTap);
         const pt = typeof e.playbackTime === 'number' && isFinite(e.playbackTime) && e.playbackTime > 0 ? e.playbackTime : ctx.currentTime + n / sr;
         const est = pt - (2 * n) / sr - A.spCount / sr;
         if (est < A.spAnchor) A.spAnchor = est;
-        const r = A.rec;
-        if (r && r.capturing) { const c = { count: A.spCount, data: new Float32Array(inp) }; r.chunks.push(c); liveEnv(r, c); }
+        const r = A.rec || A.meas;
+        if (r && r.capturing) { const c = { count: A.spCount, data: new Float32Array(inp) }; r.chunks.push(c); if (!r.meas) liveEnv(r, c); }
         A.spCount += n;
       };
       src.connect(A.sp);
@@ -1850,12 +1964,18 @@ registerProcessor('dub-tap', DubTap);
   function onTapMsg(e) {
     const d = e.data;
     if (d.peak !== undefined) { A.peak = d.peak; return; }
-    const r = A.rec;
+    const r = A.rec || A.meas;
     if (!r) return;
     if (d.done) { if (r.waitDone) finishRecording(r); return; }
-    if (d.data) { r.chunks.push(d); liveEnv(r, d); }
+    if (d.data) { r.chunks.push(d); if (!r.meas) liveEnv(r, d); }
   }
+  // How late your voice arrives relative to the original you hear: measured, or estimated from what
+  // the browser reports.
   function latencyComp() {
+    if (typeof S.settings.latencyMs === 'number') return clamp(S.settings.latencyMs / 1000, 0, 0.5);
+    return estimateLatency();
+  }
+  function estimateLatency() {
     const c = A.ctx;
     let out = c ? (c.baseLatency || 0) + (c.outputLatency || 0) : 0;
     if (!out) out = 0.012;
@@ -1896,6 +2016,8 @@ registerProcessor('dub-tap', DubTap);
   async function onRec() {
     if (A.rec) { stopRecording(); return; }
     if (!S.keys.length) return;
+    // Between two loop passes, a tap ends the loop.
+    if (A.looping) { A.looping = false; setStatus(readyText()); renderButtons(); return; }
     // A tap that lands just after a take stopped (on its own at the end of a selection, or a double
     // tap) shouldn't start another take.
     if (A.stoppedAt && performance.now() - A.stoppedAt < 800) return;
@@ -1911,7 +2033,7 @@ registerProcessor('dub-tap', DubTap);
       await record();
     } finally { if (recBusy === mine) recBusy = 0; }
   }
-  async function record() {
+  async function record(chained) {
     const key = CUR.key;
     if (!key) return;
     stopPlayback();
@@ -1927,8 +2049,11 @@ registerProcessor('dub-tap', DubTap);
     const from = sel ? sel.a : CUR.cursor > 0.02 && CUR.cursor < g.dur ? CUR.cursor : 0;
     const r = {
       key, mode: st.mode, chunks: [], comp: over ? latencyComp() : 0, origDur: g.dur, capturing: true, srcs: [], env: [], envMax: 0,
-      whole: !sel && from === 0, punchAt: from, punchOut: sel && over ? sel.b : null,
+      whole: !sel && from === 0, punchAt: from, punchOut: sel && over ? sel.b : null, loop: !!(st.loop && sel && over),
     };
+    A.looping = r.loop;
+    A.loopPass = r.loop && chained ? (A.loopPass || 0) + 1 : 1;
+    r.pass = A.loopPass;
     if (over) {
       // The original starts a little before the punch-in (the pre-roll) so you hear the lead-in.
       const playFrom = r.whole ? 0 : Math.max(0, from - Number(st.preRoll || 0));
@@ -1946,7 +2071,7 @@ registerProcessor('dub-tap', DubTap);
         gn.gain.setValueAtTime(1, r.punchT + (sel.b - sel.a));
       }
       r.srcs.push(playOn(g.buffer, r.t0, gn, playFrom));
-      if (sel && st.punchStop) r.stopAt = r.punchT + (sel.b - sel.a) + 0.4;
+      if (sel && (st.punchStop || r.loop)) r.stopAt = r.punchT + (sel.b - sel.a) + 0.4;
     } else {
       // Listen first: the original plays (only the selection, if there is one), then a beep.
       const a = from, b = sel ? sel.b : g.dur;
@@ -1973,20 +2098,24 @@ registerProcessor('dub-tap', DubTap);
     if (A.rec !== r || !r.capturing) return;
     const now = A.ctx.currentTime;
     if (now >= r.maxAt) { stopRecording(); toast('Recording stopped at the 10-minute limit.'); return; }
-    if (r.stopAt && now >= r.stopAt) { stopRecording(); return; }
+    if (r.stopAt && now >= r.stopAt) { stopRecording(true); return; }
     const cd = $('countdown'), left = r.punchT - now;
     if (r.mode === 'over' && S.settings.countIn && left > 0 && left <= 1.5) { cd.hidden = false; cd.textContent = String(Math.min(3, Math.ceil(left / 0.5))); }
     else cd.hidden = true;
     const el = Math.max(0, now - r.punchT);
     if (r.mode === 'after' && now < r.punchT) setStatus(r.whole ? 'Listen to the original. Dub after the beep.' : 'Listen to this part of the original. Dub after the beep.', 'live');
+    else if (r.loop) setStatus(now < r.punchT ? `Pass ${r.pass}. Get ready…` : `Pass ${r.pass}. Recording ${fmtSec(el)}. Tap to stop looping.`, 'live');
     else if (now < r.punchT) setStatus(r.whole ? 'Get ready…' : `Get ready. Your take starts at ${fmtT(r.punchAt)}.`, 'live');
     else if (r.mode === 'over' && now > r.t0 + (r.origDur - r.playFrom)) setStatus(`Recording ${fmtSec(el)}. The original has ended. Tap to stop when you’re done.`, 'live');
     else setStatus(`Recording ${fmtSec(el)}. ${r.stopAt ? 'It stops at the end of your selection.' : 'Tap to stop.'}`, 'live');
   }
-  function stopRecording() {
+  function stopRecording(auto) {
     const r = A.rec;
     if (!r || !r.capturing) return;
     r.capturing = false;
+    r.auto = !!auto;
+    if (!auto) A.looping = false;
+    $('streamer').hidden = true;
     clearInterval(r.timer);
     r.stoppedAt = A.ctx.currentTime;
     A.stoppedAt = performance.now();
@@ -2008,7 +2137,7 @@ registerProcessor('dub-tap', DubTap);
     document.body.classList.remove('is-rec');
     const sr = A.ctx.sampleRate;
     const done = () => { setStatus(readyText()); renderButtons(); renderEdit(); renderTakes(); drawLanes(); };
-    if (r.stoppedAt < r.punchT + 0.15) { toast('Recording cancelled.'); done(); return; }
+    if (r.stoppedAt < r.punchT + 0.15) { A.looping = false; toast('Recording cancelled.'); done(); return; }
     if (!r.chunks.length) { toast('No sound came in from the microphone.'); done(); return; }
     if (A.legacy) for (const c of r.chunks) if (c.frame === undefined) c.frame = Math.round(A.spAnchor * sr) + c.count;
     r.chunks.sort((a, b) => a.frame - b.frame);
@@ -2045,6 +2174,13 @@ registerProcessor('dub-tap', DubTap);
     renderAll();
     done();
     toast(r.whole ? `Take ${n} saved.` : `Take ${n} saved at ${fmtT(r.punchAt)}.`, { action: 'Undo', onAction: () => undoEdit(false, key) });
+    if (r.loop && r.auto && A.looping && CUR.key === key) {
+      setStatus(`Pass ${r.pass} saved as Take ${n}. Next pass coming up. Tap to stop looping.`, 'live');
+      renderButtons();
+      setTimeout(() => { if (A.looping && !A.rec && CUR.key === key && A.stream) record(true); else { A.looping = false; renderStatus(); } }, 450);
+      return;
+    }
+    A.looping = false;
     if (S.settings.autoPlay !== 'off' && CUR.key === key) setTimeout(() => play(S.settings.autoPlay), 200);
   }
   function liveEnv(r, c) {
@@ -2152,10 +2288,11 @@ registerProcessor('dub-tap', DubTap);
   const xAt = (t, W) => ((t - CUR.view.v0) / CUR.view.span) * W;
   // Draws a waveform over cue times [tA, tB]. src.env holds 10 ms peak bins, bin 0 at cue time t0.
   // Zoomed in far enough, it draws the samples (src.raw) instead, when they are in memory.
-  function drawWave(c, src, t0, tA, tB, W, H, dpr) {
+  function drawWave(c, src, t0, tA, tB, W, H, dpr, k = 1) {
     const env = src && src.env;
     if (!env || !env.v || !env.v.length) return;
     const { v0, span } = CUR.view, spp = span / W, mid = H / 2, amp = mid - 5 * dpr, norm = Math.max(env.max || 0, 0.02);
+    const bps = 100 / k; // envelope bins per second of dub time
     const xA = Math.max(0, Math.floor(xAt(tA, W))), xB = Math.min(W, Math.ceil(xAt(tB, W)));
     if (xB <= xA) return;
     const raw = src.raw, rsr = src.sr;
@@ -2163,8 +2300,8 @@ registerProcessor('dub-tap', DubTap);
       const sc = src.scale || 1;
       for (let x = xA; x < xB; x++) {
         const ta = Math.max(tA, v0 + x * spp), tb = Math.min(tB, v0 + (x + 1) * spp);
-        let i0 = Math.floor((ta - t0) * rsr);
-        const i1 = Math.max(i0 + 1, Math.ceil((tb - t0) * rsr));
+        let i0 = Math.floor(((ta - t0) / k) * rsr);
+        const i1 = Math.max(i0 + 1, Math.ceil(((tb - t0) / k) * rsr));
         if (i1 <= 0 || i0 >= raw.length) continue;
         if (i0 < 0) i0 = 0;
         let lo = 0, hi = 0;
@@ -2176,8 +2313,8 @@ registerProcessor('dub-tap', DubTap);
     }
     for (let x = xA; x < xB; x++) {
       const ta = Math.max(tA, v0 + x * spp), tb = Math.min(tB, v0 + (x + 1) * spp);
-      let b0 = Math.floor((ta - t0) * 100);
-      const b1 = Math.max(b0 + 1, Math.floor((tb - t0) * 100));
+      let b0 = Math.floor((ta - t0) * bps);
+      const b1 = Math.max(b0 + 1, Math.floor((tb - t0) * bps));
       if (b1 <= 0) continue;
       if (b0 >= env.v.length) break;
       if (b0 < 0) b0 = 0;
@@ -2264,14 +2401,15 @@ registerProcessor('dub-tap', DubTap);
         c.fillStyle = TOK.takeSoft;
         c.fillRect(xs, 2 * dpr, xe - xs, H - 4 * dpr);
         c.fillStyle = TOK.take;
-        drawWave(c, takeSrc(CUR.key, t, W), takeSpan(t).a + k.off, s, e, W, H, dpr);
+        const kk = k.k || 1;
+        drawWave(c, takeSrc(CUR.key, t, W), clipStart(k) + (takeSpan(t).a - k.in) * kk, s, e, W, H, dpr, kk);
         c.fillStyle = TOK.muted;
         c.fillRect(Math.round(xs), 2 * dpr, px, H - 4 * dpr);
         c.fillRect(Math.round(xe) - px, 2 * dpr, px, H - 4 * dpr);
-        if (cue.takes.length > 1 && xe - xs > 30 * dpr) {
+        if ((cue.takes.length > 1 || kk !== 1) && xe - xs > 30 * dpr) {
           c.font = `${10 * dpr}px ${TOK.mono}`;
           c.textBaseline = 'top';
-          c.fillText(`T${t.n}`, Math.max(xs, 0) + 4 * dpr, H - 15 * dpr);
+          c.fillText(`T${t.n}${kk !== 1 ? ` ${Math.round(kk * 100)}%` : ''}`, Math.max(xs, 0) + 4 * dpr, H - 15 * dpr);
         }
         if (k.id === CUR.clipSel && !r) {
           c.strokeStyle = TOK.ink;
@@ -2350,6 +2488,7 @@ registerProcessor('dub-tap', DubTap);
       const eg = now - r.t0 + r.playFrom;
       if (now >= r.t0 && eg <= r.origDur) heads.guide = eg;
       const et = now - r.nominal - r.comp;
+      updateStreamer(r, now);
       if (now >= r.punchT) {
         heads.comp = et;
         if (et + 0.3 > CUR.total) CUR.recTotal = et * 1.25;
@@ -2370,6 +2509,15 @@ registerProcessor('dub-tap', DubTap);
       drawLanes(heads);
       A.raf = requestAnimationFrame(frame);
     }
+  }
+  // The streamer crosses the lanes in the 1.5 s before your take starts, then flashes as you come in.
+  function updateStreamer(r, now) {
+    const el = $('streamer'), left = r.punchT - now, dur = 1.5;
+    if (!S.settings.streamer || left > dur || left < -0.15) { el.hidden = true; el.classList.remove('hit'); return; }
+    el.hidden = false;
+    if (left <= 0) { el.classList.add('hit'); return; }
+    el.classList.remove('hit');
+    el.style.transform = `translateX(${Math.round((1 - left / dur) * $('lanes').clientWidth)}px)`;
   }
   // Zoomed in, keeps the playhead in view by paging the lanes along.
   function follow(t) {
@@ -2406,7 +2554,21 @@ registerProcessor('dub-tap', DubTap);
     if (!takeById(CUR.cue, CUR.takeSel)) CUR.takeSel = cue && cue.takes.length ? cue.takes[cue.takes.length - 1].id : null;
     if (CUR.clipSel && !(cue && cue.clips.some((c) => c.id === CUR.clipSel))) CUR.clipSel = null;
     if (cue) loadEnvs(CUR.key, cue);
-    renderCueHead(); renderTakes(); renderEdit(); renderButtons(); drawLanes();
+    renderCueHead(); renderTakes(); renderTags(); renderEdit(); renderButtons(); drawLanes();
+  }
+  function renderTags() {
+    const key = CUR.key, i = (key && S.info.get(key)) || {}, t = takeById(CUR.cue, CUR.takeSel);
+    const ti = t ? peekTake(key, t.id) : {};
+    $('bStRedo').setAttribute('aria-pressed', String(i.status === 'redo'));
+    $('bStOk').setAttribute('aria-pressed', String(i.status === 'ok'));
+    $('bNoteT').classList.toggle('has-note', !!(i.note || ti.note));
+    for (const id of ['bStRedo', 'bStOk', 'bNoteT']) $(id).disabled = !key;
+    if (document.activeElement !== $('cueNote')) $('cueNote').value = i.note || '';
+    $('takeNoteWrap').hidden = !t;
+    if (t) {
+      $('takeNoteLbl').textContent = `Note for Take ${t.n}`;
+      if (document.activeElement !== $('takeNote')) $('takeNote').value = ti.note || '';
+    }
   }
   function loadEnvs(key, cue) {
     const need = cue.takes.filter((t) => !t._env);
@@ -2473,15 +2635,20 @@ registerProcessor('dub-tap', DubTap);
     for (const t of takes) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'take-chip'; b.dataset.id = t.id; b.disabled = rec;
-      b.textContent = `Take ${t.n}`;
+      const ti = peekTake(CUR.key, t.id);
+      b.textContent = `Take ${t.n}${ti.star ? ' ★' : ''}`;
+      b.title = ti.note || '';
       b.classList.toggle('used', used.has(t.id));
       b.setAttribute('aria-pressed', String(t.id === CUR.takeSel));
-      b.setAttribute('aria-label', `Take ${t.n}${used.has(t.id) ? ', used in your dub' : ''}`);
+      b.setAttribute('aria-label', `Take ${t.n}${ti.star ? ', starred' : ''}${used.has(t.id) ? ', used in your dub' : ''}${ti.note ? `, note: ${ti.note}` : ''}`);
       box.append(b);
     }
     const t = takeById(cue, CUR.takeSel);
     $('takeLbl').textContent = t ? `Take ${t.n}` : 'Take';
-    for (const id of ['bTakePlay', 'bTakeUse', 'bTakeDel']) $(id).disabled = rec || !t;
+    for (const id of ['bTakeStar', 'bTakePlay', 'bTakeUse', 'bTakeDel']) $(id).disabled = rec || !t;
+    const star = !!(t && peekTake(CUR.key, t.id).star);
+    $('bTakeStar').textContent = star ? '★' : '☆';
+    $('bTakeStar').setAttribute('aria-pressed', String(star));
     const sb = box.querySelector('[aria-pressed="true"]');
     if (sb && (sb.offsetLeft < box.scrollLeft || sb.offsetLeft + sb.offsetWidth > box.scrollLeft + box.clientWidth)) box.scrollLeft = sb.offsetLeft - 8;
   }
@@ -2517,13 +2684,17 @@ registerProcessor('dub-tap', DubTap);
     const c = editTarget(), picked = clips.find((x) => x.id === CUR.clipSel) || null;
     let text = 'Nudge the whole dub, or tap a clip';
     if (c) {
-      const ms = Math.round(c.off * 1000), t = takeById(cue, c.take);
+      const ms = Math.round(c.off * 1000), t = takeById(cue, c.take), k = c.k || 1;
       const moved = ms === 0 ? null : `${Math.abs(ms)} ms ${ms > 0 ? 'later' : 'earlier'}`;
-      if (picked && t) text = `Take ${t.n} clip${moved ? `, ${moved}` : ''}`;
-      else text = moved ? `Moved ${moved}` : 'Drag your dub to line it up';
+      const str = k !== 1 ? `${k > 1 ? 'stretched' : 'squeezed'} to ${Math.round(k * 100)}%` : null;
+      const bits = [moved, str].filter(Boolean).join(', ');
+      if (picked && t) text = `Take ${t.n} clip${bits ? `, ${bits}` : ''}`;
+      else text = bits ? bits.charAt(0).toUpperCase() + bits.slice(1) : 'Drag your dub to line it up';
     }
     $('clipText').textContent = text;
-    $('bClipReset').hidden = !c || Math.round(c.off * 1000) === 0;
+    $('bClipReset').hidden = !c || (Math.round(c.off * 1000) === 0 && (c.k || 1) === 1);
+    $('bAlign').disabled = rec || !CUR.guide;
+    $('bFit').disabled = rec || !c || !CUR.sel;
     $('bSplit').disabled = rec || !splitTarget();
     $('bClipDel').disabled = rec || !picked;
     for (const id of ['bNudgeL', 'bNudgeR', 'bClipReset']) $(id).disabled = rec;
@@ -2726,7 +2897,9 @@ registerProcessor('dub-tap', DubTap);
     if (!c || A.rec) return;
     stopPlayback();
     checkpoint(key, cue);
-    c.off = 0;
+    // A stretched clip first goes back to its own speed (keeping its start), then to where it was recorded.
+    if ((c.k || 1) !== 1) delete c.k;
+    else c.off = 0;
     cutRange(cue, clipStart(c), clipEnd(c), c.id);
     saveCue(key, cue);
     setCueView(cue);
@@ -2778,6 +2951,190 @@ registerProcessor('dub-tap', DubTap);
     toast(`Take ${t.n} deleted.`, { action: 'Undo', onAction: () => undoEdit(false, key) });
   }
 
+  // ---------- lining up with the original ----------
+  // Compares the loudness pattern of your dub with the original's (10 ms steps, log scale) and moves
+  // clips to where they match best. "Each phrase" splits clips at pauses and moves each piece.
+  const featOf = (x) => Math.log1p(40 * x);
+  function guideFeat(g, u) { const b = Math.floor(u * 100); return b >= 0 && b < g.env.v.length ? featOf(g.env.v[b]) : 0; }
+  function clipFeat(cue, c, u) {
+    const t = takeById(cue, c.take);
+    if (!t || !t._env) return 0;
+    const b = Math.floor((tauOf(c, u) - takeSpan(t).a) * 100);
+    return b >= 0 && b < t._env.v.length ? featOf(t._env.v[b]) : 0;
+  }
+  function unitize(v) {
+    let m = 0;
+    for (let i = 0; i < v.length; i++) m += v[i];
+    m /= v.length;
+    let s2 = 0;
+    for (let i = 0; i < v.length; i++) { v[i] -= m; s2 += v[i] * v[i]; }
+    if (s2 < 1e-9) return false;
+    const sc = 1 / Math.sqrt(s2);
+    for (let i = 0; i < v.length; i++) v[i] *= sc;
+    return true;
+  }
+  // How far to move clip c (seconds, + is later) so dub time [a, b] best matches the original.
+  function bestShift(cue, c, a, b, maxS) {
+    const g = CUR.guide, n = Math.floor((b - a) * 100);
+    if (!g || n < 15) return null;
+    const T = new Float64Array(n), G = new Float64Array(n), M = Math.round(maxS * 100), sc = [];
+    for (let i = 0; i < n; i++) T[i] = clipFeat(cue, c, a + i / 100);
+    if (!unitize(T)) return null;
+    let best = -2, bi = 0;
+    for (let d = -M; d <= M; d++) {
+      for (let i = 0; i < n; i++) G[i] = guideFeat(g, a + (i + d) / 100);
+      let r = -2;
+      if (unitize(G)) { r = 0; for (let i = 0; i < n; i++) r += T[i] * G[i]; }
+      sc.push(r);
+      if (r > best) { best = r; bi = sc.length - 1; }
+    }
+    let frac = 0;
+    if (bi > 0 && bi < sc.length - 1 && sc[bi - 1] > -2 && sc[bi + 1] > -2) {
+      const y0 = sc[bi - 1], y1 = sc[bi], y2 = sc[bi + 1], den = y0 - 2 * y1 + y2;
+      if (den < 0) frac = clamp((0.5 * (y0 - y2)) / den, -0.5, 0.5);
+    }
+    return { shift: (bi - M + frac) / 100, r: best };
+  }
+  // Splits a clip at pauses of 150 ms or more in its take; returns the pieces.
+  function splitAtPauses(cue, c) {
+    const t = takeById(cue, c.take);
+    if (!t || !t._env) return [c];
+    const env = t._env, sp = takeSpan(t), thr = Math.max(0.01, env.max * 0.1), cuts = [];
+    let run = 0;
+    const b0 = Math.ceil((c.in - sp.a) * 100), b1 = Math.floor((c.out - sp.a) * 100);
+    for (let b = b0; b <= b1; b++) {
+      if ((env.v[b] || 0) < thr) run++;
+      else { if (run >= 15 && b - run > b0) cuts.push(sp.a + (b - run / 2) / 100); run = 0; }
+    }
+    const pieces = [c];
+    let cur = c;
+    for (const tau of cuts) {
+      const nxt = splitClipAt(cue, cur, clipStart(cur) + (tau - cur.in) * (cur.k || 1));
+      if (nxt) { pieces.push(nxt); cur = nxt; }
+    }
+    return pieces;
+  }
+  async function lineUp() {
+    const key = CUR.key, cue = CUR.cue;
+    if (!cue || !cue.clips.length || A.rec || !CUR.guide) return;
+    stopPlayback();
+    await Promise.all(cue.takes.map((t) => getEnv(key, t)));
+    if (CUR.cue !== cue) return;
+    const before = JSON.stringify(packCue(cue)), picked = cue.clips.find((x) => x.id === CUR.clipSel);
+    let targets = picked ? [picked] : cue.clips.slice();
+    const phrase = S.settings.alignMode === 'phrase';
+    if (phrase) targets = targets.flatMap((c) => splitAtPauses(cue, c));
+    let matched = 0, moved = 0, sum = 0;
+    for (const c of targets) {
+      const a = Math.max(0, clipStart(c)), b = Math.min(clipEnd(c), CUR.guide.dur + 0.5);
+      const res = bestShift(cue, c, a, b, phrase ? 0.25 : 0.5);
+      if (!res || res.r < 0.25) continue;
+      matched++;
+      if (Math.abs(res.shift) < 0.004) continue;
+      c.off = Math.round((c.off + res.shift) * 1e4) / 1e4;
+      moved++; sum += res.shift;
+    }
+    if (!moved) {
+      cue.clips = JSON.parse(before).clips; // drop pause splits that led nowhere
+      setCueView(cue);
+      toast(matched ? 'Already lined up with the original.' : 'Couldn’t find a clear match with the original here. Line it up by dragging instead.');
+      return;
+    }
+    pushSnap(key, before);
+    if (targets.length === 1) cutRange(cue, clipStart(targets[0]), clipEnd(targets[0]), targets[0].id);
+    fixOverlaps(cue);
+    saveCue(key, cue);
+    setCueView(cue);
+    renderAll();
+    const ms = Math.round(Math.abs(sum) * 1000);
+    toast(moved === 1 && targets.length === 1 ? `Moved ${ms} ms ${sum > 0 ? 'later' : 'earlier'} to line up with the original.` : `Lined up ${moved} ${phrase ? 'phrase' : 'clip'}${moved === 1 ? '' : 's'} with the original.`, { action: 'Undo', onAction: () => undoEdit(false, key) });
+  }
+  // Stretches or squeezes the clip (keeping its pitch) so it fills the selection exactly.
+  function fitToSel() {
+    const key = CUR.key, cue = CUR.cue, c = editTarget(), sel = CUR.sel;
+    if (!c || !sel || A.rec) return;
+    const k = (sel.b - sel.a) / (c.out - c.in);
+    if (k < 0.7 || k > 1.4) {
+      toast(`That would ${k < 1 ? 'squeeze' : 'stretch'} the clip to ${Math.round(k * 100)}%. Fit works between 70% and 140%, so trim the clip or change the selection first.`);
+      return;
+    }
+    stopPlayback();
+    checkpoint(key, cue);
+    c.k = Math.round(k * 1e4) / 1e4;
+    c.off = sel.a - c.in;
+    cutRange(cue, clipStart(c), clipEnd(c), c.id);
+    saveCue(key, cue);
+    setCueView(cue);
+    toast(`${k < 1 ? 'Squeezed' : 'Stretched'} to ${Math.round(c.k * 100)}% to fill the selection.`, { action: 'Undo', onAction: () => undoEdit(false, key) });
+  }
+
+  // ---------- measuring the device's delay ----------
+  // Plays six clicks and listens for them through the microphone. The delay between playing and
+  // hearing each one is how late your voice arrives relative to what you hear.
+  function burst(when) {
+    const ctx = A.ctx, n = Math.round(ctx.sampleRate * 0.004), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.sin((2 * Math.PI * 2500 * i) / ctx.sampleRate) * (1 - i / n);
+    return playOn(b, when, A.out);
+  }
+  async function measureLatency() {
+    if (A.rec || A.meas) return;
+    let started = A.stream ? startAudio() : null; // first thing, while still inside the tap
+    if (!A.stream) {
+      if (!(await enableMic())) { renderLatency(); renderButtons(); return; }
+      renderButtons();
+      started = startAudio();
+    }
+    if (!(await started)) { toast(audioStuckText()); return; }
+    stopPlayback();
+    const ctx = A.ctx, sr = ctx.sampleRate, N = 6, gap = 0.6, t0 = ctx.currentTime + 0.6, clicks = [];
+    const m = { chunks: [], capturing: true, meas: true };
+    A.meas = m;
+    if (A.tap) A.tap.port.postMessage('on');
+    for (let k = 0; k < N; k++) { clicks.push(t0 + k * gap); burst(t0 + k * gap); }
+    $('bLatency').disabled = true;
+    $('latText').textContent = 'Listening for the clicks. Keep the room quiet…';
+    await sleep((t0 - ctx.currentTime + N * gap + 0.5) * 1000);
+    m.capturing = false;
+    if (A.tap) { A.tap.port.postMessage('off'); await sleep(200); }
+    A.meas = null;
+    $('bLatency').disabled = false;
+    const lats = [];
+    if (m.chunks.length) {
+      if (A.legacy) for (const c of m.chunks) if (c.frame === undefined) c.frame = Math.round(A.spAnchor * sr) + c.count;
+      m.chunks.sort((a, b) => a.frame - b.frame);
+      const first = m.chunks[0].frame, last = m.chunks[m.chunks.length - 1], len = last.frame + last.data.length - first;
+      const x = new Float32Array(Math.max(0, len));
+      for (const c of m.chunks) { const o = c.frame - first; if (o >= 0 && o + c.data.length <= x.length) x.set(c.data, o); }
+      const pre = Math.round(0.15 * sr), win = Math.round(0.45 * sr);
+      for (const when of clicks) {
+        const e = Math.round(when * sr) - first;
+        if (e - pre < 0 || e + win > x.length) continue;
+        let nr = 0;
+        for (let i = e - pre; i < e; i++) nr += x[i] * x[i];
+        const thr = Math.max(0.02, 8 * Math.sqrt(nr / pre));
+        for (let i = e; i < e + win; i++) if (Math.abs(x[i]) > thr) { lats.push((i - e) / sr); break; }
+      }
+    }
+    lats.sort((a, b) => a - b);
+    if (lats.length < 4 || lats[lats.length - 2] - lats[1] > 0.006) {
+      renderLatency();
+      toast(lats.length < 4 ? 'Dub Booth couldn’t hear the clicks. Unplug your headphones or hold them to the microphone, turn the volume up, and try again.' : 'The clicks came back unevenly, so the result isn’t reliable. Try again in a quieter spot.');
+      return;
+    }
+    const ms = Math.round(lats[Math.floor(lats.length / 2)] * 1000);
+    S.settings.latencyMs = ms;
+    saveMeta(true);
+    renderLatency();
+    toast(`Measured ${ms} ms. New takes will be lined up using this.`);
+  }
+  function renderLatency() {
+    const ms = S.settings.latencyMs;
+    $('latText').textContent = typeof ms === 'number'
+      ? `Measured on this device: ${ms} ms. New takes are shifted by this much so they land in sync.`
+      : `Dub Booth estimates this device’s delay${A.ctx ? ` (about ${Math.round(estimateLatency() * 1000)} ms)` : ''}. For tighter sync, measure it: in a quiet room, unplug your headphones or hold them up to the microphone, then tap Measure.`;
+    $('bLatReset').hidden = typeof ms !== 'number';
+  }
+
   function renderButtons() {
     const recOn = !!A.rec, n = S.keys.length, has = !!(CUR.key && S.takes.has(CUR.key));
     $('bPrev').disabled = recOn || S.idx <= 0;
@@ -2787,9 +3144,9 @@ registerProcessor('dub-tap', DubTap);
     $('bDel').disabled = recOn || !(CUR.cue && (CUR.cue.takes.length || CUR.cue.clips.length));
     document.querySelectorAll('.seg').forEach((b) => { b.disabled = recOn; });
     const rec = $('bRec');
-    rec.classList.toggle('is-rec', recOn);
+    rec.classList.toggle('is-rec', recOn || !!A.looping);
     rec.classList.toggle('is-off', !A.stream && !recOn);
-    rec.setAttribute('aria-label', recOn ? 'Stop recording' : A.stream ? 'Record this cue' : 'Turn on the microphone');
+    rec.setAttribute('aria-label', recOn || A.looping ? (A.looping ? 'Stop looping' : 'Stop recording') : A.stream ? 'Record this cue' : 'Turn on the microphone');
     $('meter').hidden = !A.stream;
   }
   function renderPlayState() {
@@ -2841,13 +3198,19 @@ registerProcessor('dub-tap', DubTap);
     updateList();
   }
   function updateList() {
-    const items = $('cues').children;
+    const items = $('cues').children, f = $('listFilter').value;
     for (let i = 0; i < items.length; i++) {
-      const li = items[i], k = S.keys[i], done = S.takes.has(k), b = li.firstChild;
+      const li = items[i], k = S.keys[i], done = S.takes.has(k), b = li.firstChild, inf = S.info.get(k) || {};
       li.classList.toggle('done', done);
+      li.classList.toggle('redo', inf.status === 'redo');
+      li.classList.toggle('ok', inf.status === 'ok');
       li.classList.toggle('cur', i === S.idx);
+      const show = f === 'all' || (f === 'left' && !done) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok');
+      li.hidden = !show && i !== S.idx; // the cue you're on stays in the list
       if (i === S.idx) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
-      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}, ${done ? 'dubbed' : 'no take yet'}`);
+      const mark = inf.status === 'redo' ? ', needs redo' : inf.status === 'ok' ? ', approved' : '';
+      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}, ${done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
+      b.title = inf.note || '';
     }
   }
   function scrollListToCur() {
@@ -3050,6 +3413,8 @@ registerProcessor('dub-tap', DubTap);
   async function clearAllTakes() {
     stopPlayback();
     S.takes.clear(); S.hasRec.clear(); S.cues.clear(); S.pcm.clear(); S.hist.clear();
+    for (const i of S.info.values()) delete i.tk;
+    saveInfo();
     await store.clear('takes');
     await store.clear('pcm');
     saveMeta(true);
@@ -3148,6 +3513,10 @@ registerProcessor('dub-tap', DubTap);
     $('preRoll').value = String(s.preRoll);
     $('duck').value = s.duck;
     $('punchStop').checked = s.punchStop;
+    $('loop').checked = s.loop;
+    $('streamerOn').checked = s.streamer;
+    $('alignMode').value = s.alignMode;
+    renderLatency();
     $('fmt').value = s.fmt;
     $('cSr').value = String(s.cSr);
     $('cCh').value = String(s.cCh);
@@ -3179,14 +3548,14 @@ registerProcessor('dub-tap', DubTap);
     $('bNext').addEventListener('click', () => goTo(S.idx + 1));
     $('bDel').addEventListener('click', clearCue);
     $('cues').addEventListener('click', (e) => { const b = e.target.closest('.cue-item'); if (b) goTo(Number(b.dataset.i)); });
-    $('onlyLeft').addEventListener('change', (e) => { $('cues').classList.toggle('only-left', e.target.checked); scrollListToCur(); });
+    $('listFilter').addEventListener('change', () => { updateList(); scrollListToCur(); });
     bindLanes();
     $('takeChips').addEventListener('click', (e) => {
       const b = e.target.closest('.take-chip');
       if (!b || A.rec) return;
       if (A.play && A.play.kind === 'raw') stopPlayback();
       CUR.takeSel = b.dataset.id;
-      renderTakes(); drawLanes();
+      renderTakes(); renderTags(); drawLanes();
     });
     $('bTakePlay').addEventListener('click', () => play('raw'));
     $('bTakeUse').addEventListener('click', useWholeTake);
@@ -3214,6 +3583,41 @@ registerProcessor('dub-tap', DubTap);
     bindCheck('countIn', 'countIn');
     bindCheck('trim', 'trim');
     bindCheck('punchStop', 'punchStop');
+    bindCheck('loop', 'loop', renderStatus);
+    bindCheck('streamerOn', 'streamer');
+    $('alignMode').addEventListener('change', (e) => { S.settings.alignMode = e.target.value; saveMeta(true); });
+    $('bLatency').addEventListener('click', measureLatency);
+    $('bLatReset').addEventListener('click', () => { S.settings.latencyMs = null; saveMeta(true); renderLatency(); });
+    $('bAlign').addEventListener('click', lineUp);
+    $('bFit').addEventListener('click', fitToSel);
+    const markCue = (v) => {
+      if (!CUR.key) return;
+      const i = cueInfo(CUR.key);
+      i.status = i.status === v ? '' : v;
+      saveInfo(); renderTags(); updateList();
+    };
+    $('bStRedo').addEventListener('click', () => markCue('redo'));
+    $('bStOk').addEventListener('click', () => markCue('ok'));
+    $('bNoteT').addEventListener('click', () => {
+      const open = $('noteRow').hidden;
+      $('noteRow').hidden = !open;
+      $('bNoteT').setAttribute('aria-expanded', String(open));
+      if (open) $('cueNote').focus();
+    });
+    $('cueNote').addEventListener('input', (e) => { if (!CUR.key) return; cueInfo(CUR.key).note = e.target.value; saveInfo(); renderTags(); updateList(); });
+    $('takeNote').addEventListener('input', (e) => {
+      const t = takeById(CUR.cue, CUR.takeSel);
+      if (!CUR.key || !t) return;
+      takeInfo(CUR.key, t.id).note = e.target.value;
+      saveInfo(); renderTags(); renderTakes();
+    });
+    $('bTakeStar').addEventListener('click', () => {
+      const t = takeById(CUR.cue, CUR.takeSel);
+      if (!CUR.key || !t) return;
+      const ti = takeInfo(CUR.key, t.id);
+      ti.star = !ti.star;
+      saveInfo(); renderTakes();
+    });
     bindCheck('echo', 'echo', async () => {
       const tr = A.stream && A.stream.getAudioTracks()[0];
       if (!tr || !tr.applyConstraints) return;
@@ -3261,6 +3665,7 @@ registerProcessor('dub-tap', DubTap);
       else if (k === 'Escape') { if (A.rec) stopRecording(); else if (A.play) stopPlayback(); else clearPos(); }
       else if (k === '[' || k === ']' || k === '{' || k === '}') nudge(k === '[' ? -10 : k === ']' ? 10 : k === '{' ? -1 : 1);
       else if (k === 's' || k === 'S') splitClip();
+      else if (k === 'l' || k === 'L') lineUp();
       else if ((k === 'Delete' || k === 'Backspace') && CUR.clipSel) { e.preventDefault(); deleteClip(); }
       else if (k === '+' || k === '=') zoomBy(1 / 1.6);
       else if (k === '-' || k === '_') zoomBy(1.6);
@@ -3268,12 +3673,13 @@ registerProcessor('dub-tap', DubTap);
     });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        flushMeta(); flushSaves();
+        flushMeta(); flushSaves(); flushInfo();
+        A.looping = false;
         if (A.rec) { stopRecording(); toast('Recording stopped because the page went to the background.'); }
         stopPlayback();
       } else if (A.stream) wakeLock();
     });
-    window.addEventListener('pagehide', () => { flushMeta(); flushSaves(); });
+    window.addEventListener('pagehide', () => { flushMeta(); flushSaves(); flushInfo(); });
     const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if (mq) { const f = () => { readTokens(); drawLanes(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
     let rt = 0;
@@ -3298,6 +3704,8 @@ registerProcessor('dub-tap', DubTap);
       if (typeof meta.settings.offsetMs === 'number' && meta.settings.offsetMs) S.settings.legacyShiftMs = -meta.settings.offsetMs;
       for (const k of ['autoStop', 'tail', 'kbps', 'normalize', 'offsetMs']) delete S.settings[k]; // options from older versions
     }
+    const inf = await store.get('meta', 'info');
+    if (inf && typeof inf === 'object') for (const k of Object.keys(inf)) if (inf[k] && typeof inf[k] === 'object') S.info.set(k, inf[k]);
     applySettingsToUI();
     try { await cleanupAudio(); } catch (e) { console.warn('cleanup', e); }
     if (meta && Array.isArray(meta.keys) && meta.keys.length) {
@@ -3315,7 +3723,7 @@ registerProcessor('dub-tap', DubTap);
     renderStorage();
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (_) { /* ignore */ }
     window.__dubBooth = {
-      A, S, CUR, getCue, renderComp, cutRange, addClip, splitClipAt, takeSpan, clipStart, clipEnd, undoEdit, probeMp3, buildInfoFrame, crc16, resample,
+      A, S, CUR, getCue, renderComp, cutRange, addClip, splitClipAt, takeSpan, clipStart, clipEnd, tauOf, undoEdit, bestShift, stretchAudio, probeMp3, buildInfoFrame, crc16, resample,
       get lastExport() { return lastExport; },
     };
   }
