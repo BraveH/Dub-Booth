@@ -77,11 +77,6 @@ p { margin: 0; }
 .wrap { max-width: 1120px; margin: 0 auto; }
 
 /* top bar */
-.topbar {
-  position: sticky; top: 0; z-index: 20; background: var(--bg);
-  padding-top: calc(env(safe-area-inset-top, 0px) + 10px); padding-bottom: 10px; margin-bottom: 16px;
-  display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line);
-}
 .brand { display: flex; align-items: center; gap: 8px; font: 700 19px/1 var(--font-display); letter-spacing: -0.01em; white-space: nowrap; }
 .tally { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
 body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-soft); }
@@ -89,7 +84,6 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .prog-num { font: 600 13px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .prog-bar { flex: 1; height: 6px; min-width: 32px; max-width: 220px; border-radius: 3px; background: var(--well); overflow: hidden; }
 .prog-bar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width 0.3s; }
-.top-actions { display: flex; gap: 8px; margin-left: auto; }
 .topline { position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; }
 .topline i { display: block; height: 100%; width: 0; background: var(--ok); transition: width 0.3s; }
 @media (max-width: 559px) { .prog { display: none !important; } }
@@ -134,22 +128,11 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .note { font-size: 14px; color: var(--ink); padding: 12px 14px; border-radius: 12px; background: var(--rec-soft); }
 
-/* layout */
-.layout { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 900px) {
-  .layout { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
-  .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 76px); }
-}
-.console, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
-.console { padding: 16px; display: grid; gap: 14px; min-width: 0; }
-.panel { padding: 16px; display: grid; gap: 12px; min-width: 0; }
+/* panels */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .panel h2 { margin: 0; font: 700 17px/1.2 var(--font-display); }
-.stack { display: grid; gap: 16px; margin-top: 16px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 900px) { .stack { grid-template-columns: 1fr 1fr; align-items: start; } }
-#export { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 80px); }
 
 /* cue console */
-.cue-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cue-no { font: 700 30px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
 .cue-no .lbl { font: 600 11px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-right: 8px; vertical-align: 7px; }
 .cue-no .of { font-size: 16px; color: var(--muted); font-weight: 600; }
@@ -200,9 +183,7 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .pos { flex: 1 1 0; min-width: 0; text-align: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; justify-content: center; align-items: center; gap: 6px; white-space: nowrap; }
 .pos #posText { overflow: hidden; text-overflow: ellipsis; }
 #scroll { flex: 1 1 100%; margin: 0; }
-.clip-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 10px; }
 .clip-text { text-align: center; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 8px; }
-.clip-acts { grid-column: 1 / -1; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 .link-btn { border: 0; background: transparent; color: var(--ink); font-weight: 600; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px 4px; min-height: 32px; }
 .countdown {
   position: absolute; left: 0; right: 0; top: 0; bottom: 24px; z-index: 2;
@@ -216,8 +197,6 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .seg[aria-checked="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
 .seg[disabled] { opacity: 0.5; cursor: default; }
 
-.transport { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
-.transport .btn { min-height: 54px; padding: 0 10px; }
 .rec {
   width: 84px; height: 84px; border-radius: 50%; border: 4px solid var(--panel); background: var(--rec);
   box-shadow: 0 0 0 2px var(--rec), var(--shadow); display: grid; place-items: center; cursor: pointer;
@@ -237,9 +216,6 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .meter { justify-self: center; width: 100%; max-width: 220px; height: 6px; border-radius: 3px; background: var(--well); overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--ok); }
 .meter.hot i { background: var(--rec); }
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.cue-nav { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; }
-.cue-nav .btn { min-height: 48px; }
 
 /* cue list */
 .h2-sub { font: 500 13px/1 var(--font-ui); color: var(--muted); margin-left: 4px; }
@@ -317,7 +293,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
 
 /* toast & banner */
 .toast {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 50;
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 70;
   bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: max-content; max-width: min(520px, calc(100vw - 32px));
   display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
   background: var(--ink); color: var(--bg); font-size: 14px; box-shadow: var(--shadow);
@@ -328,26 +304,205 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
 
 @media (max-width: 380px) {
   .transport .btn { font-size: 14px; }
-  .rec { width: 76px; height: 76px; }
+  .rec { width: 66px; height: 66px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rec.is-rec { animation: none; }
   .prog-bar i, .rec-ico { transition: none; }
   .btn:active { transform: none; }
 }
+
+/* ---------- app shell ----------
+   Phone first. Each part of the app is its own view: Booth, Cues, Script, Export, Settings.
+   A tab bar switches views: fixed at the bottom on phones, in the top bar from 1000px, where the
+   cue list also sits beside the booth. The booth docks its play and record controls at the bottom. */
+:root { --tabbar: 60px; }
+.topbar {
+  position: relative; z-index: 20; background: var(--bg);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px); padding-bottom: 8px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line);
+}
+.prog { order: 1; }
+.tabs { order: 2; display: flex; gap: 2px; margin-left: auto; }
+.tab {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted); font: 600 14px/1 var(--font-ui); cursor: pointer;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.tab svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+.tab:hover { color: var(--ink); }
+.tab[aria-current="page"] { color: var(--ink); background: var(--well); }
+.tab:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+@media (min-width: 1000px) {
+  .topbar { position: sticky; top: 0; }
+  .tab[data-view="cues"] { display: none; }
+  .prog { flex: 0 1 280px; }
+}
+@media (max-width: 999px) {
+  .tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
+    padding: 4px max(6px, env(safe-area-inset-right, 0px)) calc(4px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px));
+    background: var(--panel); border-top: 1px solid var(--line);
+  }
+  .tab { flex-direction: column; justify-content: center; gap: 3px; min-height: 52px; padding: 2px; font-size: 11px; letter-spacing: 0.01em; }
+  .tab svg { width: 42px; height: 26px; padding: 3px 10px; border-radius: 999px; }
+  .tab[aria-current="page"] { background: transparent; }
+  .tab[aria-current="page"] svg { background: var(--well); }
+  body.in-work { padding-bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* views */
+#work .view { display: none; }
+#work[data-view="cues"] #vCues, #work[data-view="script"] #vScript,
+#work[data-view="export"] #vExport, #work[data-view="settings"] #vSettings { display: grid; }
+#work[data-view="booth"] #vBooth { display: flex; }
+.views { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.view { min-width: 0; }
+.view.page, .cues-view { gap: 14px; align-content: start; }
+.view.page { width: 100%; max-width: 760px; justify-self: center; }
+.view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.view-head h2 { margin: 0; font: 700 24px/1.15 var(--font-display); letter-spacing: -0.01em; }
+.group-box { display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+.group-box h3 { margin: 0; font: 700 16px/1.25 var(--font-display); }
+.group-box > .btn { justify-self: start; }
+details.more summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink); padding: 4px 0; }
+details.more[open] { display: grid; gap: 10px; }
+.export-go { display: grid; gap: 10px; position: sticky; bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 8px); padding: 12px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); }
+@media (min-width: 1000px) {
+  .views { grid-template-columns: minmax(0, 1fr) 340px; }
+  #work[data-view="booth"] #vCues, #work[data-view="cues"] #vCues { display: grid; }
+  #work[data-view="cues"] #vBooth { display: flex; }
+  #vBooth { grid-column: 1; grid-row: 1; }
+  #vCues { grid-column: 2; grid-row: 1; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 69px); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; }
+  .view.page { grid-column: 1 / -1; }
+  .export-go { bottom: 12px; }
+}
+
+/* booth */
+.booth { flex-direction: column; gap: 10px; min-height: calc(100svh - 72px - var(--tabbar) - env(safe-area-inset-bottom, 0px) - env(safe-area-inset-top, 0px)); }
+@media (min-width: 1000px) {
+  .booth { min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 16px 16px 0; gap: 12px; }
+}
+.cue-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.cue-id { min-width: 0; display: grid; gap: 4px; }
+.cue-no { font: 700 24px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; display: flex; align-items: baseline; gap: 4px; }
+.cue-no .lbl { font: 600 11px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-right: 4px; vertical-align: 0; }
+.cue-no .of { font-size: 14px; color: var(--muted); font-weight: 600; }
+.cue-no .pill { margin-left: 8px; align-self: center; font-size: 11px; padding: 5px 8px; }
+.cue-name { font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.icon-btn {
+  position: relative; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  display: grid; place-items: center; cursor: pointer; padding: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.icon-btn svg { width: 22px; height: 22px; fill: currentColor; }
+.icon-btn:hover { background: var(--well); }
+.icon-btn[disabled] { opacity: 0.35; cursor: default; }
+.icon-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+.icon-btn.has-note::after { content: ""; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--take); }
+button.line-box { width: 100%; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.line-box:hover { background: var(--line); }
+button.line-box:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+.line-text { display: block; }
+.rhythmo { margin-bottom: 0; }
+.tools { display: grid; gap: 8px; }
+.tools .view-row { margin-top: 0; }
+.clip-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.clip-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.clip-acts { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.chip-btn {
+  min-height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  font: 600 13px/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.chip-btn:hover { background: var(--well); }
+.chip-btn.quiet { color: var(--muted); }
+.chip-btn.is-playing { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip-btn[disabled] { opacity: 0.4; cursor: default; pointer-events: none; }
+.chip-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+/* the dock: status, play and record, always in reach at the bottom of the booth */
+.dock {
+  position: sticky; bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px)); z-index: 6; margin-top: auto;
+  display: grid; gap: 8px;
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(16px, env(safe-area-inset-right, 0px)));
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--bg); border-top: 1px solid var(--line);
+}
+@media (min-width: 1000px) {
+  .dock { bottom: 0; margin: 4px -16px 0; padding: 12px 16px 14px; border-radius: 0 0 18px 18px; background: var(--panel); }
+}
+.dock .rec-status { font-size: 13px; min-height: 18px; }
+.transport { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.transport .btn { min-height: 52px; padding: 0 10px; }
+.rec-wrap { display: grid; justify-items: center; gap: 6px; }
+.rec { width: 72px; height: 72px; }
+.rec-ico { width: 26px; height: 26px; }
+.rec.is-off .rec-ico { width: 24px; height: 24px; }
+.rec.is-rec .rec-ico { width: 22px; height: 22px; }
+.rec-wrap .meter { width: 64px; height: 4px; }
+.compare { display: flex; justify-content: center; gap: 8px; }
+@media (max-width: 999px) and (max-height: 700px) {
+  .dock { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .dock .rec-status { font-size: 12.5px; }
+  .transport .btn { min-height: 46px; }
+  .rec { width: 62px; height: 62px; }
+  .compare .chip-btn { min-height: 32px; }
+}
+/* cue list view */
+.list-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.list-tools select { width: auto; min-height: 40px; font-size: 13px; padding: 0 8px; }
+input[type="search"] { min-height: 40px; width: 100%; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font: inherit; color: inherit; }
+input[type="search"]:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+.cues-view .cues { max-height: none; background: var(--panel); }
+@media (min-width: 1000px) { .cues-view .cues { max-height: calc(100vh - 230px); } }
+/* every line, in the script view */
+.script-table { display: grid; gap: 8px; }
+.st-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, 30%); gap: 6px 8px; padding: 10px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.st-name { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); }
+.st-name b { color: var(--ink); font-weight: 700; flex: none; }
+.st-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-row input { min-height: 40px; }
+/* the cue sheet: status, line, character, notes */
+.sheet-back { position: fixed; inset: 0; z-index: 60; background: rgba(8, 12, 18, 0.45); }
+.sheet {
+  position: fixed; z-index: 61; left: 0; right: 0; bottom: 0; max-height: 88vh; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  background: var(--panel); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  display: grid; gap: 12px;
+}
+@media (min-width: 700px) {
+  .sheet { left: 50%; right: auto; bottom: auto; top: 10vh; width: min(540px, calc(100vw - 32px)); transform: translateX(-50%); border-radius: 20px; padding: 0 20px 20px; }
+}
+.sheet-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 8px; background: var(--panel); }
+.sheet-head h2 { margin: 0; min-width: 0; font: 700 18px/1.25 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-body { display: grid; gap: 14px; }
+.sheet .cue-tags { margin: 0; }
+.sheet .tag-btn { min-height: 38px; padding: 0 14px; font-size: 14px; }
+.btn.danger-text { color: var(--rec); justify-self: start; padding-left: 0; padding-right: 0; }
+/* On phones a toast sits just above the tab bar, and in the booth just above the record dock,
+   so it never covers the record button. */
+@media (max-width: 999px) {
+  body.in-work .toast { bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + 10px); }
+  body.in-work[data-view="booth"] .toast { bottom: calc(var(--tabbar) + env(safe-area-inset-bottom, 0px) + var(--dock-h, 160px) + 8px); }
+  body.in-work.sheet-open .toast { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+body.sheet-open { overflow: hidden; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="topbar">
     <div class="brand"><span class="tally" aria-hidden="true"></span>Dub Booth</div>
+    <nav class="tabs" id="tabs" aria-label="Sections" hidden>
+      <button class="tab" type="button" data-view="booth" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg><span>Booth</span></button>
+      <button class="tab" type="button" data-view="cues" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8z"/></svg><span>Cues</span></button>
+      <button class="tab" type="button" data-view="script" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5zM7 12v2h10v-2zm0 4v2h7v-2z"/></svg><span>Script</span></button>
+      <button class="tab" type="button" data-view="export" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.17l3.59-3.58L18 10l-6 6-6-6 1.41-1.41L11 12.17zM5 18h14v2H5z"/></svg><span>Export</span></button>
+      <button class="tab" type="button" data-view="settings" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58-1.92-3.32-2.39.96a7 7 0 0 0-1.62-.94L14.88 3.6h-3.84l-.36 2.58a7 7 0 0 0-1.62.94l-2.39-.96-1.92 3.32 2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58 1.92 3.32 2.39-.96c.5.38 1.04.7 1.62.94l.36 2.58h3.84l.36-2.58c.58-.24 1.12-.56 1.62-.94l2.39.96 1.92-3.32zM12.96 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-0.96 0)"/></svg><span>Settings</span></button>
+    </nav>
     <div class="prog" id="prog" hidden>
       <span class="prog-num" id="progNum"></span>
       <span class="prog-bar" aria-hidden="true"><i id="progBar"></i></span>
-    </div>
-    <div class="top-actions" id="topActions" hidden>
-      <label class="btn small" for="pick">Load</label>
-      <a class="btn small" href="#export">Export</a>
     </div>
     <span class="topline" aria-hidden="true"><i id="toplineBar"></i></span>
   </header>
@@ -371,35 +526,25 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
     <p class="hint">Tip: add Dub Booth to your Home Screen to use it like an app. It works offline after the first visit.</p>
   </section>
 
-  <div id="work" hidden>
-    <div class="layout">
-      <section class="console" aria-label="Current cue">
-        <div class="cue-head">
-          <div class="cue-no"><span class="lbl">Cue</span><span id="cueNo">000</span><span class="of" id="cueOf"> / 0</span></div>
-          <span class="pill" id="cueState">No take yet</span>
-        </div>
-        <div class="cue-name" id="cueName"></div>
-        <div class="cue-tags">
-          <button class="tag-btn redo" type="button" id="bStRedo" aria-pressed="false">Needs redo</button>
-          <button class="tag-btn ok" type="button" id="bStOk" aria-pressed="false">Approved</button>
-          <button class="tag-btn" type="button" id="bNoteT" aria-expanded="false" aria-controls="noteRow">Notes</button>
-          <button class="tag-btn" type="button" id="bLineT" aria-expanded="false" aria-controls="lineRow">Line</button>
-        </div>
-        <div class="line-row" id="lineRow" hidden>
-          <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
-          <label class="field"><span>Line to say</span><textarea id="cueLine" rows="2" placeholder="What to say in this cue"></textarea></label>
-          <datalist id="charList"></datalist>
-        </div>
-        <div class="note-row" id="noteRow" hidden>
-          <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
-          <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
+  <div id="work" data-view="booth" hidden>
+    <div class="views">
+      <section class="view booth" id="vBooth" aria-label="Booth">
+        <div class="cue-bar">
+          <button class="icon-btn" type="button" id="bPrev" aria-label="Previous cue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.3 8 12l6.7 6.7 1.4-1.4L10.8 12l5.3-5.3z"/></svg></button>
+          <div class="cue-id">
+            <div class="cue-no"><span class="lbl">Cue</span><span id="cueNo">000</span><span class="of" id="cueOf"> / 0</span><span class="pill" id="cueState">No take yet</span></div>
+            <div class="cue-name" id="cueName"></div>
+          </div>
+          <button class="icon-btn" type="button" id="bNext" aria-label="Next cue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.3 5.3 7.9 6.7l5.3 5.3-5.3 5.3 1.4 1.4L16 12z"/></svg></button>
+          <button class="icon-btn" type="button" id="bCueMenu" aria-haspopup="dialog" aria-controls="cueDlg" aria-label="Cue details: status, line, character and notes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg></button>
         </div>
 
-        <div class="line-box" id="lineBox" hidden>
+        <button class="line-box" type="button" id="lineBox" aria-label="Edit the line" hidden>
           <span class="line-char" id="lineChar" hidden></span>
-          <p class="line-text" id="lineText"></p>
-        </div>
+          <span class="line-text" id="lineText"></span>
+        </button>
         <canvas class="rhythmo" id="cvRhythmo" aria-label="Rhythmo band: the words of the line scroll past the red line as they should be spoken" hidden></canvas>
+
         <div class="lanes" id="lanes">
           <div class="lane" data-lane="orig">
             <span class="lane-lbl"><i class="sw guide"></i>Original <b id="durGuide"></b></span>
@@ -427,85 +572,86 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <div class="countdown" id="countdown" aria-live="assertive" hidden>3</div>
           <div class="streamer" id="streamer" hidden></div>
         </div>
-        <div class="view-row">
-          <div class="btn-pair">
-            <button class="btn small icon" type="button" id="bZoomOut" aria-label="Zoom out">−</button>
-            <button class="btn small icon" type="button" id="bZoomIn" aria-label="Zoom in">+</button>
+
+        <div class="tools">
+          <div class="view-row">
+            <div class="btn-pair">
+              <button class="btn small icon" type="button" id="bZoomOut" aria-label="Zoom out">−</button>
+              <button class="btn small icon" type="button" id="bZoomIn" aria-label="Zoom in">+</button>
+            </div>
+            <p class="pos"><span id="posText" aria-live="polite"></span><button class="link-btn" type="button" id="bPosClear" aria-label="Clear the selection and start point" hidden>Clear</button></p>
+            <div class="btn-pair">
+              <button class="btn small icon" type="button" id="bUndo" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+              <button class="btn small icon" type="button" id="bRedo" aria-label="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
+            </div>
+            <input type="range" id="scroll" min="0" max="1000" step="1" value="0" aria-label="Scroll along the cue" hidden>
           </div>
-          <p class="pos"><span id="posText" aria-live="polite"></span><button class="link-btn" type="button" id="bPosClear" aria-label="Clear the selection and start point" hidden>Clear</button></p>
-          <div class="btn-pair">
-            <button class="btn small icon" type="button" id="bUndo" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-            <button class="btn small icon" type="button" id="bRedo" aria-label="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
-          </div>
-          <input type="range" id="scroll" min="0" max="1000" step="1" value="0" aria-label="Scroll along the cue" hidden>
-        </div>
-        <div class="clip-row" id="clipRow" hidden>
-          <button class="btn small" type="button" id="bNudgeL" aria-label="Move 10 milliseconds earlier">‹ 10 ms</button>
-          <p class="clip-text"><span id="clipText" aria-live="polite"></span><button class="link-btn" type="button" id="bClipReset" hidden>Reset</button></p>
-          <button class="btn small" type="button" id="bNudgeR" aria-label="Move 10 milliseconds later">10 ms ›</button>
-          <div class="clip-acts">
-            <button class="btn small" type="button" id="bAlign" aria-label="Line up with the original">Line up</button>
-            <button class="btn small" type="button" id="bFit" aria-label="Fit the clip to the selection: stretch or squeeze it to fill it" title="Stretch or squeeze the clip to fill the selection">Fit</button>
-            <button class="btn small" type="button" id="bSplit" aria-label="Split the clip at the start point">Split</button>
-            <button class="btn small quiet" type="button" id="bClipDel">Delete clip</button>
+          <div class="clip-row" id="clipRow" hidden>
+            <div class="clip-head">
+              <button class="btn small" type="button" id="bNudgeL" aria-label="Move 10 milliseconds earlier">‹ 10 ms</button>
+              <p class="clip-text"><span id="clipText" aria-live="polite"></span><button class="link-btn" type="button" id="bClipReset" hidden>Reset</button></p>
+              <button class="btn small" type="button" id="bNudgeR" aria-label="Move 10 milliseconds later">10 ms ›</button>
+            </div>
+            <div class="clip-acts">
+              <button class="chip-btn" type="button" id="bAlign" aria-label="Line up with the original">Line up</button>
+              <button class="chip-btn" type="button" id="bFit" aria-label="Fit the clip to the selection: stretch or squeeze it to fill it" title="Stretch or squeeze the clip to fill the selection">Fit</button>
+              <button class="chip-btn" type="button" id="bSplit" aria-label="Split the clip at the start point">Split</button>
+              <button class="chip-btn quiet" type="button" id="bClipDel">Delete clip</button>
+            </div>
           </div>
         </div>
 
-        <div class="mode" role="radiogroup" aria-label="Recording mode">
-          <button class="seg" type="button" role="radio" data-mode="over" aria-checked="true">Dub over the original</button>
-          <button class="seg" type="button" role="radio" data-mode="after" aria-checked="false">Listen, then dub</button>
-        </div>
-
-        <div class="transport">
-          <button class="btn" type="button" id="bOrig" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>Original</button>
-          <button class="rec is-off" type="button" id="bRec" aria-label="Turn on the microphone"><span class="rec-ico"></span></button>
-          <button class="btn" type="button" id="bTake" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>My dub</button>
-        </div>
-        <p class="rec-status" id="recStatus" aria-live="polite"></p>
-        <div class="meter" id="meter" title="Microphone level" hidden><i id="meterBar"></i></div>
-
-        <div class="compare">
-          <button class="btn" type="button" id="bBoth" aria-pressed="false" aria-label="Play the original and your take at the same time">Both at once</button>
-          <button class="btn" type="button" id="bAB" aria-pressed="false" aria-label="Play the original, then your take">Back to back</button>
-        </div>
-
-        <div class="cue-nav">
-          <button class="btn" type="button" id="bPrev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.3 8 12l6.7 6.7 1.4-1.4L10.8 12l5.3-5.3z"/></svg>Previous</button>
-          <button class="btn quiet" type="button" id="bDel" aria-label="Delete all takes for this cue">Delete takes</button>
-          <button class="btn primary" type="button" id="bNext">Next<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.3 5.3 7.9 6.7l5.3 5.3-5.3 5.3 1.4 1.4L16 12z"/></svg></button>
+        <div class="dock">
+          <p class="rec-status" id="recStatus" aria-live="polite"></p>
+          <div class="transport">
+            <button class="btn" type="button" id="bOrig" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>Original</button>
+            <div class="rec-wrap">
+              <button class="rec is-off" type="button" id="bRec" aria-label="Turn on the microphone"><span class="rec-ico"></span></button>
+              <div class="meter" id="meter" title="Microphone level" hidden><i id="meterBar"></i></div>
+            </div>
+            <button class="btn" type="button" id="bTake" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>My dub</button>
+          </div>
+          <div class="compare">
+            <button class="chip-btn" type="button" id="bBoth" aria-pressed="false" aria-label="Play the original and your dub at the same time">Both at once</button>
+            <button class="chip-btn" type="button" id="bAB" aria-pressed="false" aria-label="Play the original, then your dub">Back to back</button>
+          </div>
         </div>
       </section>
 
-      <aside class="side">
-        <section class="panel" aria-label="All cues">
-          <div class="panel-head">
-            <h2>Cues <span class="h2-sub" id="listCount"></span></h2>
-            <label class="list-filter"><select id="listFilter" aria-label="Show cues">
-              <option value="all">All cues</option>
-              <option value="left">Not dubbed yet</option>
-              <option value="redo">Needs redo</option>
-              <option value="open">Not approved yet</option>
-              <option value="ok">Approved</option>
-            </select></label>
-          </div>
-          <ol class="cues" id="cues"></ol>
-        </section>
-      </aside>
-    </div>
+      <section class="view cues-view" id="vCues" aria-label="Cues">
+        <div class="view-head">
+          <h2>Cues <span class="h2-sub" id="listCount"></span></h2>
+          <label class="btn small" for="pick">Load files</label>
+        </div>
+        <div class="list-tools">
+          <input type="search" id="cueSearch" placeholder="Search cues" autocomplete="off" aria-label="Search cues by file name, line, character or note">
+          <select id="listFilter" aria-label="Show cues">
+            <option value="all">All cues</option>
+            <option value="left">Not dubbed yet</option>
+            <option value="redo">Needs redo</option>
+            <option value="open">Not approved yet</option>
+            <option value="ok">Approved</option>
+          </select>
+        </div>
+        <ol class="cues" id="cues"></ol>
+      </section>
 
-    <div class="stack">
-      <section class="panel" id="script" aria-label="Script and cast">
-        <h2>Script and cast</h2>
+      <section class="view page" id="vScript" aria-label="Script and cast">
+        <div class="view-head"><h2>Script and cast</h2></div>
         <p class="muted" id="scriptSummary"></p>
-        <label class="btn" for="pickScript">Import a script</label>
-        <input class="file-input" type="file" id="pickScript" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values">
-        <p class="hint">A CSV or tab-separated file with columns for file name, line, character and note. A first row with column names is fine. A plain text file is read as one line per cue, in cue order.</p>
-        <label class="field"><span>Or paste lines, one per cue, in cue order</span><textarea id="pasteLines" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
-        <button class="btn" type="button" id="bPasteLines">Use these lines</button>
-        <label class="check"><input type="checkbox" id="rhythmo"> Show the rhythmo band: the line’s words scroll past a red mark as they should be spoken</label>
-        <hr class="divider">
-        <div class="field">
-          <span>Transcribe the originals</span>
+        <div class="group-box">
+          <h3>Bring in a script</h3>
+          <label class="btn" for="pickScript">Import a script</label>
+          <input class="file-input" type="file" id="pickScript" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values">
+          <p class="hint">A CSV or tab-separated file with columns for file name, line, character and note. A first row with column names is fine. A plain text file is read as one line per cue, in cue order.</p>
+          <details class="more">
+            <summary>Paste lines instead</summary>
+            <label class="field"><span>One line per cue, in cue order</span><textarea id="pasteLines" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
+            <button class="btn" type="button" id="bPasteLines">Use these lines</button>
+          </details>
+        </div>
+        <div class="group-box">
+          <h3>Transcribe the originals</h3>
           <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads a model of about 80 MB.</p>
           <div class="row">
             <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
@@ -513,151 +659,195 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
             <button class="link-btn" type="button" id="bAsrStop" hidden>Stop</button>
           </div>
           <progress id="asrBar" max="1" value="0" hidden></progress>
+          <label class="check"><input type="checkbox" id="rhythmo"> Show the rhythmo band: the line’s words scroll past a red mark as they should be spoken</label>
         </div>
-      </section>
-      <section class="panel" id="export" aria-label="Export">
-        <h2>Export</h2>
-        <p class="muted" id="expSummary"></p>
-        <fieldset class="group">
-          <legend>Sound of your dubs (playback and export)</legend>
-          <label class="check"><input type="checkbox" id="denoise"> Reduce steady background noise, like hiss or hum</label>
-          <label class="check"><input type="checkbox" id="toneMatch"> Match each original’s tone with an automatic EQ</label>
-          <label class="check"><input type="checkbox" id="roomTone"> Fill the gaps between clips with your room’s own quiet sound</label>
-        </fieldset>
-        <label class="field"><span>Format</span>
-          <select id="fmt">
-            <option value="match">Same as each original</option>
-            <option value="custom">Custom MP3</option>
-            <option value="wav">WAV (16-bit, at each original’s rate)</option>
-          </select>
-        </label>
-        <p class="hint" id="fmtDetected">Load your originals to see their format.</p>
-        <div class="fields" id="customFields" hidden>
-          <label class="field"><span>Sample rate</span>
-            <select id="cSr">
-              <option value="8000">8 kHz</option>
-              <option value="11025">11.025 kHz</option>
-              <option value="12000">12 kHz</option>
-              <option value="16000">16 kHz</option>
-              <option value="22050">22.05 kHz</option>
-              <option value="24000">24 kHz</option>
-              <option value="32000">32 kHz</option>
-              <option value="44100">44.1 kHz</option>
-              <option value="48000">48 kHz</option>
-            </select>
-          </label>
-          <label class="field"><span>Bitrate</span><select id="cKbps"></select></label>
-          <label class="field"><span>Channels</span>
-            <select id="cCh">
-              <option value="1">Mono</option>
-              <option value="2">Stereo</option>
-            </select>
-          </label>
-          <label class="field"><span>Encoder tag (ID3v2.4)</span>
-            <input type="text" id="cEnc" placeholder="None" autocomplete="off" autocapitalize="off" spellcheck="false">
-          </label>
-        </div>
-        <label class="field"><span>Volume</span>
-          <select id="vol">
-            <option value="match">Match each original’s loudness</option>
-            <option value="peak">Even out (peaks at −1 dB)</option>
-            <option value="raw">Leave as recorded</option>
-          </select>
-        </label>
-        <label class="field"><span>File names</span>
-          <input type="text" id="namePat" placeholder="{name}" autocomplete="off" autocapitalize="off" spellcheck="false">
-        </label>
-        <p class="hint">{name} is the original’s name, {cue} its number and {character} who says it. Leave it as {name} to keep the same names.</p>
-        <label class="check"><input type="checkbox" id="trim"> Trim silence from the start and end of each take</label>
-        <label class="check"><input type="checkbox" id="charFolders"> Put each character’s files in a folder named after them</label>
-        <label class="check"><input type="checkbox" id="alternates"> Also export every take on its own, in an alternates folder</label>
-        <label class="check"><input type="checkbox" id="cueSheet"> Include a cue sheet (CSV) with lines, characters, marks and notes</label>
-        <button class="btn primary" type="button" id="bExport">Build a zip of all dubs</button>
-        <div class="exp-progress" id="expProg" hidden>
-          <progress id="expBar" max="1" value="0"></progress>
-          <span id="expText"></span>
-        </div>
-        <div class="exp-ready" id="expReady" hidden>
-          <a class="btn primary" id="dlLink" href="#" download="dubbed-takes.zip">Download zip</a>
-          <button class="btn" type="button" id="bShare" hidden>Share or save to Files</button>
-          <p class="hint" id="expNote"></p>
+        <div class="group-box">
+          <h3>Every line</h3>
+          <p class="hint">Edit any cue’s character and line here; changes save as you type.</p>
+          <div class="script-table" id="scriptTable"></div>
         </div>
       </section>
 
-      <section class="panel" id="settings" aria-label="Recording settings">
-        <h2>Recording settings</h2>
-        <label class="check"><input type="checkbox" id="countIn"> Count in with three clicks before you come in (dub-over mode)</label>
-        <label class="field"><span>When you record part of a cue, start the original</span>
-          <select id="preRoll">
-            <option value="0">Right at the start point</option>
-            <option value="1">1 second earlier</option>
-            <option value="2">2 seconds earlier</option>
-            <option value="3">3 seconds earlier</option>
-            <option value="5">5 seconds earlier</option>
-          </select>
-        </label>
-        <label class="field"><span>Inside a selection, the original</span>
-          <select id="duck">
-            <option value="full">Plays at full volume</option>
-            <option value="quiet">Plays quieter</option>
-            <option value="off">Goes silent</option>
-          </select>
-        </label>
-        <label class="check"><input type="checkbox" id="punchStop"> Stop recording at the end of a selection</label>
-        <label class="check"><input type="checkbox" id="loop"> Loop a selection: record pass after pass, each one a new take, until you tap stop</label>
-        <label class="check"><input type="checkbox" id="streamerOn"> Show a streamer that sweeps across the lanes as you come in</label>
-        <label class="field"><span>Line up moves</span>
-          <select id="alignMode">
-            <option value="clip">The whole clip</option>
-            <option value="phrase">Each phrase on its own</option>
-          </select>
-        </label>
-        <div class="field">
-          <span>Remote control</span>
-          <p class="hint">Bluetooth keyboards, foot pedals and page turners act like a keyboard. Choose a key for each action; the usual keys keep working too.</p>
-          <div class="key-rows" id="keyRows"></div>
-          <label class="check"><input type="checkbox" id="mediaKeys"> Use headphone and media buttons: play/pause records or stops, next and previous change cue</label>
+      <section class="view page" id="vExport" aria-label="Export">
+        <div class="view-head"><h2>Export</h2></div>
+        <p class="muted" id="expSummary"></p>
+        <div class="group-box">
+          <h3>Sound of your dubs</h3>
+          <p class="hint">These apply when you play your dub and when you export it.</p>
+          <label class="check"><input type="checkbox" id="denoise"> Reduce steady background noise, like hiss or hum</label>
+          <label class="check"><input type="checkbox" id="toneMatch"> Match each original’s tone with an automatic EQ</label>
+          <label class="check"><input type="checkbox" id="roomTone"> Fill the gaps between clips with your room’s own quiet sound</label>
+          <label class="field"><span>Volume</span>
+            <select id="vol">
+              <option value="match">Match each original’s loudness</option>
+              <option value="peak">Even out (peaks at −1 dB)</option>
+              <option value="raw">Leave as recorded</option>
+            </select>
+          </label>
         </div>
-        <div class="field">
-          <span>Sync calibration</span>
+        <div class="group-box">
+          <h3>Format</h3>
+          <label class="field"><span>Files</span>
+            <select id="fmt">
+              <option value="match">Same as each original</option>
+              <option value="custom">Custom MP3</option>
+              <option value="wav">WAV (16-bit, at each original’s rate)</option>
+            </select>
+          </label>
+          <p class="hint" id="fmtDetected">Load your originals to see their format.</p>
+          <div class="fields" id="customFields" hidden>
+            <label class="field"><span>Sample rate</span>
+              <select id="cSr">
+                <option value="8000">8 kHz</option>
+                <option value="11025">11.025 kHz</option>
+                <option value="12000">12 kHz</option>
+                <option value="16000">16 kHz</option>
+                <option value="22050">22.05 kHz</option>
+                <option value="24000">24 kHz</option>
+                <option value="32000">32 kHz</option>
+                <option value="44100">44.1 kHz</option>
+                <option value="48000">48 kHz</option>
+              </select>
+            </label>
+            <label class="field"><span>Bitrate</span><select id="cKbps"></select></label>
+            <label class="field"><span>Channels</span>
+              <select id="cCh">
+                <option value="1">Mono</option>
+                <option value="2">Stereo</option>
+              </select>
+            </label>
+            <label class="field"><span>Encoder tag (ID3v2.4)</span>
+              <input type="text" id="cEnc" placeholder="None" autocomplete="off" autocapitalize="off" spellcheck="false">
+            </label>
+          </div>
+        </div>
+        <div class="group-box">
+          <h3>Names and extras</h3>
+          <label class="field"><span>File names</span>
+            <input type="text" id="namePat" placeholder="{name}" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </label>
+          <p class="hint">{name} is the original’s name, {cue} its number and {character} who says it. Leave it as {name} to keep the same names.</p>
+          <label class="check"><input type="checkbox" id="trim"> Trim silence from the start and end of each dub</label>
+          <label class="check"><input type="checkbox" id="charFolders"> Put each character’s files in a folder named after them</label>
+          <label class="check"><input type="checkbox" id="alternates"> Also export every take on its own, in an alternates folder</label>
+          <label class="check"><input type="checkbox" id="cueSheet"> Include a cue sheet (CSV) with lines, characters, marks and notes</label>
+        </div>
+        <div class="export-go">
+          <button class="btn primary" type="button" id="bExport">Build a zip of all dubs</button>
+          <div class="exp-progress" id="expProg" hidden>
+            <progress id="expBar" max="1" value="0"></progress>
+            <span id="expText"></span>
+          </div>
+          <div class="exp-ready" id="expReady" hidden>
+            <a class="btn primary" id="dlLink" href="#" download="dubbed-takes.zip">Download zip</a>
+            <button class="btn" type="button" id="bShare" hidden>Share or save to Files</button>
+            <p class="hint" id="expNote"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="view page" id="vSettings" aria-label="Settings">
+        <div class="view-head"><h2>Settings</h2></div>
+        <div class="group-box">
+          <h3>Recording</h3>
+          <div class="mode" role="radiogroup" aria-label="Recording mode">
+            <button class="seg" type="button" role="radio" data-mode="over" aria-checked="true">Dub over the original</button>
+            <button class="seg" type="button" role="radio" data-mode="after" aria-checked="false">Listen, then dub</button>
+          </div>
+          <label class="check"><input type="checkbox" id="countIn"> Count in with three clicks before you come in (dub-over mode)</label>
+          <label class="check"><input type="checkbox" id="streamerOn"> Show a streamer that sweeps across the lanes as you come in</label>
+          <label class="field"><span>After each take, play</span>
+            <select id="autoPlay">
+              <option value="off">Nothing</option>
+              <option value="take">My dub</option>
+              <option value="both">Both at once</option>
+              <option value="ab">Back to back</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="echo"> Echo cancellation (only when you can’t use headphones)</label>
+        </div>
+        <div class="group-box">
+          <h3>Recording part of a cue</h3>
+          <p class="hint">Drag across the original in the booth to choose a part, then record.</p>
+          <label class="field"><span>Start the original</span>
+            <select id="preRoll">
+              <option value="0">Right at the start point</option>
+              <option value="1">1 second earlier</option>
+              <option value="2">2 seconds earlier</option>
+              <option value="3">3 seconds earlier</option>
+              <option value="5">5 seconds earlier</option>
+            </select>
+          </label>
+          <label class="field"><span>Inside the selection, the original</span>
+            <select id="duck">
+              <option value="full">Plays at full volume</option>
+              <option value="quiet">Plays quieter</option>
+              <option value="off">Goes silent</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="punchStop"> Stop recording at the end of the selection</label>
+          <label class="check"><input type="checkbox" id="loop"> Loop the selection: record pass after pass, each one a new take, until you tap stop</label>
+          <label class="field"><span>Line up moves</span>
+            <select id="alignMode">
+              <option value="clip">The whole clip</option>
+              <option value="phrase">Each phrase on its own</option>
+            </select>
+          </label>
+        </div>
+        <div class="group-box">
+          <h3>Sync calibration</h3>
           <p class="hint" id="latText"></p>
           <div class="row"><button class="btn small" type="button" id="bLatency">Measure this device</button><button class="link-btn" type="button" id="bLatReset" hidden>Use the estimate</button></div>
         </div>
-        <label class="field"><span>After each take, play</span>
-          <select id="autoPlay">
-            <option value="off">Nothing</option>
-            <option value="take">My dub</option>
-            <option value="both">Both at once</option>
-            <option value="ab">Back to back</option>
-          </select>
-        </label>
-        <label class="check"><input type="checkbox" id="echo"> Echo cancellation (only when you can’t use headphones)</label>
-        <hr class="divider">
-        <div class="field">
-          <span>Backup</span>
-          <p class="hint">Saves your originals, every take, your dubs, lines and notes in one file. Open it later with Load, on this device or another.</p>
+        <div class="group-box">
+          <h3>Remote control and keyboard</h3>
+          <p class="hint">Bluetooth keyboards, foot pedals and page turners act like a keyboard. Choose a key for each action; the usual keys keep working too.</p>
+          <div class="key-rows" id="keyRows"></div>
+          <label class="check"><input type="checkbox" id="mediaKeys"> Use headphone and media buttons: play/pause records or stops, next and previous change cue</label>
+          <p class="hint">Keyboard: Space records or stops, O plays the original, T your dub, P the selected take, B both at once, A back to back, the arrow keys change cue, [ ] nudge by 10 ms ({ } by 1 ms), L lines up, S splits a clip, Delete removes it, + and − zoom, Esc clears the selection, and ⌘Z or Ctrl+Z undoes.</p>
+        </div>
+        <div class="group-box">
+          <h3>Project and storage</h3>
+          <p class="hint">Takes are saved in this browser as you go. A backup saves your originals, every take, your dubs, lines and notes in one file; open it later with Load files, on this device or another.</p>
           <button class="btn" type="button" id="bBackup">Save a backup</button>
           <p class="hint" id="bakText" hidden></p>
           <div class="exp-ready" id="bakReady" hidden>
             <a class="btn primary" id="bakLink" href="#" download="dub-booth-backup.zip">Download backup</a>
             <button class="btn" type="button" id="bBakShare" hidden>Share or save to Files</button>
           </div>
-        </div>
-        <hr class="divider">
-        <p class="hint" id="storageNote" hidden></p>
-        <button class="btn" type="button" id="bUnused">Delete takes that no dub uses</button>
-        <button class="btn" type="button" id="bClear">Delete all takes</button>
-        <div class="confirm" id="clearConfirm" hidden>
-          <p>Delete every take in all <b id="clearCount">0</b> cues? This can’t be undone. Export first if you want to keep them.</p>
-          <div class="row">
-            <button class="btn danger" type="button" id="bClearYes">Delete all takes</button>
-            <button class="btn" type="button" id="bClearNo">Keep them</button>
+          <p class="hint" id="storageNote" hidden></p>
+          <button class="btn" type="button" id="bUnused">Delete takes that no dub uses</button>
+          <button class="btn" type="button" id="bClear">Delete all takes</button>
+          <div class="confirm" id="clearConfirm" hidden>
+            <p>Delete every take in all <b id="clearCount">0</b> cues? This can’t be undone. Export first if you want to keep them.</p>
+            <div class="row">
+              <button class="btn danger" type="button" id="bClearYes">Delete all takes</button>
+              <button class="btn" type="button" id="bClearNo">Keep them</button>
+            </div>
           </div>
         </div>
       </section>
     </div>
+  </div>
+</div>
 
-    <p class="foot muted">Takes are saved in this browser as you go. With a keyboard: Space records or stops, O plays the original, T your dub, P the selected take, B both at once, A back to back, the arrow keys change cue, [ ] nudge by 10 ms ({ } by 1 ms), L lines up, S splits a clip, Delete removes it, + and − zoom, Esc clears the selection, and ⌘Z or Ctrl+Z undoes.</p>
+<div class="sheet-back" id="sheetBack" hidden></div>
+<div class="sheet" id="cueDlg" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="sheet-head">
+    <h2 id="sheetTitle">Cue</h2>
+    <button class="icon-btn" type="button" id="bSheetClose" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.71 12 12.01l-6.3-6.3-1.41 1.41 6.3 6.3-6.3 6.3 1.41 1.41 6.3-6.3 6.3 6.3 1.41-1.41-6.3-6.3 6.3-6.3z"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div class="cue-tags" role="group" aria-label="Status">
+      <button class="tag-btn redo" type="button" id="bStRedo" aria-pressed="false">Needs redo</button>
+      <button class="tag-btn ok" type="button" id="bStOk" aria-pressed="false">Approved</button>
+    </div>
+    <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
+    <datalist id="charList"></datalist>
+    <label class="field"><span>Line to say</span><textarea id="cueLine" rows="2" placeholder="What to say in this cue"></textarea></label>
+    <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
+    <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
+    <button class="btn quiet danger-text" type="button" id="bDel" aria-label="Delete all takes for this cue">Delete all takes for this cue</button>
   </div>
 </div>
 
@@ -2827,8 +3017,9 @@ registerProcessor('dub-tap', DubTap);
     const ti = t ? peekTake(key, t.id) : {};
     $('bStRedo').setAttribute('aria-pressed', String(i.status === 'redo'));
     $('bStOk').setAttribute('aria-pressed', String(i.status === 'ok'));
-    $('bNoteT').classList.toggle('has-note', !!(i.note || ti.note));
-    for (const id of ['bStRedo', 'bStOk', 'bNoteT']) $(id).disabled = !key;
+    $('bCueMenu').classList.toggle('has-note', !!(i.note || ti.note || i.line || i.char || i.status));
+    $('bCueMenu').disabled = !key;
+    $('sheetTitle').textContent = key ? `Cue ${pad3(S.idx + 1)} · ${key}` : 'Cue';
     if (document.activeElement !== $('cueNote')) $('cueNote').value = i.note || '';
     $('takeNoteWrap').hidden = !t;
     if (t) {
@@ -2864,6 +3055,7 @@ registerProcessor('dub-tap', DubTap);
     $('cueOf').textContent = ' / ' + n;
     $('cueName').textContent = key || '';
     $('cueName').title = key || '';
+    $('bAsrOne').textContent = n ? `Only cue ${pad3(S.idx + 1)}` : 'This cue only'; // the script view can't see which cue is open
     const pill = $('cueState');
     pill.textContent = has ? 'Dubbed' : 'No take yet';
     pill.classList.toggle('done', has);
@@ -3277,13 +3469,14 @@ registerProcessor('dub-tap', DubTap);
   function afterScriptChange() {
     rhythmoCache.clear();
     renderScript(); renderTags(); renderLine(); refreshCharFilter(); updateList(); drawLanes();
+    if (currentView() === 'script') renderScriptTable();
   }
   function renderScript() {
     const n = S.keys.length, withLine = S.keys.filter((k) => (S.info.get(k) || {}).line).length;
     const chars = charNames();
     $('scriptSummary').textContent = !n ? 'Load your originals first.'
       : withLine ? `${withLine} of ${n} cues have a line${chars.length ? `, spoken by ${chars.length} character${chars.length === 1 ? '' : 's'}` : ''}.`
-        : 'No lines yet. Import a script, paste lines, transcribe the originals, or add a line to each cue with its Line button.';
+        : 'No lines yet. Import a script, paste lines, transcribe the originals, or type each cue’s line in the list below.';
     $('rhythmo').checked = S.settings.rhythmo;
     $('charFolders').checked = S.settings.charFolders;
     for (const id of ['bAsr', 'bAsrOne', 'bPasteLines']) $(id).disabled = !n || !!A.asr;
@@ -3304,8 +3497,6 @@ registerProcessor('dub-tap', DubTap);
     $('lineText').textContent = inf.line || '';
     $('lineChar').textContent = inf.char || '';
     $('lineChar').hidden = !inf.char;
-    $('bLineT').classList.toggle('has-note', !!(inf.line || inf.char));
-    $('bLineT').disabled = !key;
     if (document.activeElement !== $('cueLine')) $('cueLine').value = inf.line || '';
     if (document.activeElement !== $('cueChar')) $('cueChar').value = inf.char || '';
     CUR.words = rhythmoWords(key);
@@ -3749,7 +3940,7 @@ self.onmessage = async (e) => {
     updateList();
   }
   function updateList() {
-    const items = $('cues').children, f = $('listFilter').value;
+    const items = $('cues').children, f = $('listFilter').value, q = $('cueSearch').value.trim().toLowerCase();
     for (let i = 0; i < items.length; i++) {
       const li = items[i], k = S.keys[i], done = S.takes.has(k), b = li.firstChild, inf = S.info.get(k) || {};
       li.classList.toggle('done', done);
@@ -3759,7 +3950,8 @@ self.onmessage = async (e) => {
       const show = f === 'all' || (f === 'left' && !done) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok') || (f.startsWith('char:') && (inf.char || '').trim() === f.slice(5));
       const chEl = b.querySelector('.ci-char');
       if (chEl) chEl.textContent = inf.char ? `· ${inf.char}` : '';
-      li.hidden = !show && i !== S.idx; // the cue you're on stays in the list
+      const hit = !q || [k, inf.line, inf.char, inf.note].some((v) => v && String(v).toLowerCase().includes(q));
+      li.hidden = !(show && hit) && i !== S.idx; // the cue you're on stays in the list
       if (i === S.idx) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
       const mark = inf.status === 'redo' ? ', needs redo' : inf.status === 'ok' ? ', approved' : '';
       b.setAttribute('aria-label', `Cue ${i + 1}, ${k}${inf.char ? `, ${inf.char}` : ''}, ${done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
@@ -3784,7 +3976,11 @@ self.onmessage = async (e) => {
     renderScript();
     $('welcome').hidden = true;
     $('work').hidden = false;
-    $('topActions').hidden = false;
+    document.body.classList.add('in-work');
+    $('tabs').hidden = false;
+    let v = 'booth';
+    try { v = localStorage.getItem('dub-booth-view') || 'booth'; } catch (_) { /* storage unavailable */ }
+    showView(v);
     buildList(); renderAll(); renderStatus(); showCue();
     requestAnimationFrame(scrollListToCur);
   }
@@ -4203,6 +4399,77 @@ self.onmessage = async (e) => {
     try { if ('wakeLock' in navigator && document.visibilityState === 'visible' && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch (_) { wl = null; }
   }
 
+  // ---------- views ----------
+  // Booth, Cues, Script, Export and Settings each fill the screen; from 1000px the cue list stays
+  // beside the booth. The last view is remembered on this device.
+  const VIEWS = ['booth', 'cues', 'script', 'export', 'settings'];
+  const wide = () => !!(window.matchMedia && window.matchMedia('(min-width: 1000px)').matches);
+  const currentView = () => $('work').dataset.view || 'booth';
+  const boothShown = () => { const v = currentView(); return v === 'booth' || (v === 'cues' && wide()); };
+  function showView(v) {
+    if (!VIEWS.includes(v)) v = 'booth';
+    if (v === 'cues' && wide()) v = 'booth';
+    const was = currentView();
+    $('work').dataset.view = v;
+    document.body.dataset.view = v;
+    document.querySelectorAll('#tabs .tab').forEach((t) => t.setAttribute('aria-current', t.dataset.view === v ? 'page' : 'false'));
+    try { localStorage.setItem('dub-booth-view', v); } catch (_) { /* storage unavailable */ }
+    if (v === 'script') renderScriptTable();
+    if (v === 'settings') renderStorage();
+    if (was !== v) window.scrollTo(0, 0);
+    // Canvases have no size while their view is hidden; draw them once it shows.
+    requestAnimationFrame(() => { if (boothShown()) drawLanes(); if (v === 'cues' || wide()) scrollListToCur(); });
+  }
+
+  // ---------- the cue sheet: status, line, character and notes ----------
+  let sheetFrom = null;
+  function openSheet(focusId) {
+    if (!CUR.key) return;
+    sheetFrom = document.activeElement;
+    renderTags(); renderLine();
+    $('sheetBack').hidden = false;
+    $('cueDlg').hidden = false;
+    document.querySelector('.wrap').inert = true;
+    document.body.classList.add('sheet-open');
+    setTimeout(() => { const f = $(focusId || 'bStRedo'); if (f) f.focus(); }, 30);
+  }
+  function closeSheet() {
+    if ($('cueDlg').hidden) return;
+    $('cueDlg').hidden = true;
+    $('sheetBack').hidden = true;
+    document.querySelector('.wrap').inert = false;
+    document.body.classList.remove('sheet-open');
+    refreshCharFilter(); updateList();
+    if (sheetFrom && sheetFrom.focus) sheetFrom.focus();
+  }
+
+  // ---------- every line, in the script view ----------
+  let scriptSumTimer = 0;
+  function renderScriptTable() {
+    const box = $('scriptTable');
+    if (box.contains(document.activeElement)) return; // don't rebuild under the cursor
+    box.textContent = '';
+    const frag = document.createDocumentFragment();
+    S.keys.forEach((k, i) => {
+      const inf = S.info.get(k) || {}, row = document.createElement('div');
+      row.className = 'st-row'; row.dataset.key = k;
+      const nm = document.createElement('div'); nm.className = 'st-name';
+      const no = document.createElement('b'); no.textContent = pad3(i + 1);
+      const fn = document.createElement('span'); fn.textContent = k;
+      nm.append(no, fn);
+      const line = document.createElement('input');
+      line.type = 'text'; line.className = 'st-line'; line.value = inf.line || ''; line.placeholder = 'Line to say';
+      line.setAttribute('aria-label', `Line for cue ${i + 1}, ${k}`);
+      const ch = document.createElement('input');
+      ch.type = 'text'; ch.className = 'st-char'; ch.value = inf.char || ''; ch.placeholder = 'Character';
+      ch.setAttribute('list', 'charList');
+      ch.setAttribute('aria-label', `Character for cue ${i + 1}, ${k}`);
+      row.append(nm, line, ch);
+      frag.append(row);
+    });
+    box.append(frag);
+  }
+
   // ---------- remote control ----------
   // Pedals, page turners and Bluetooth keyboards send keys; each action can have its own key.
   const KEY_ACTIONS = [['rec', 'Record or stop'], ['dub', 'Play my dub'], ['orig', 'Play the original'], ['next', 'Next cue'], ['prev', 'Previous cue']];
@@ -4233,6 +4500,7 @@ self.onmessage = async (e) => {
     return null;
   }
   function runAction(act) {
+    if (!boothShown() && act !== 'next' && act !== 'prev') showView('booth');
     if (act === 'rec') onRec();
     else if (act === 'dub') play('take');
     else if (act === 'orig') play('orig');
@@ -4320,8 +4588,13 @@ self.onmessage = async (e) => {
     $('bAB').addEventListener('click', () => play('ab'));
     $('bPrev').addEventListener('click', () => goTo(S.idx - 1));
     $('bNext').addEventListener('click', () => goTo(S.idx + 1));
-    $('bDel').addEventListener('click', clearCue);
-    $('cues').addEventListener('click', (e) => { const b = e.target.closest('.cue-item'); if (b) goTo(Number(b.dataset.i)); });
+    $('bDel').addEventListener('click', () => { closeSheet(); clearCue(); }); // like an action sheet: the choice closes it
+    $('cues').addEventListener('click', (e) => {
+      const b = e.target.closest('.cue-item');
+      if (!b) return;
+      goTo(Number(b.dataset.i));
+      if (!wide()) showView('booth');
+    });
     $('listFilter').addEventListener('change', () => { updateList(); scrollListToCur(); });
     bindLanes();
     $('takeChips').addEventListener('click', (e) => {
@@ -4371,12 +4644,6 @@ self.onmessage = async (e) => {
       saveInfo(); renderTags(); updateList();
     };
     $('bStRedo').addEventListener('click', () => markCue('redo'));
-    $('bLineT').addEventListener('click', () => {
-      const open = $('lineRow').hidden;
-      $('lineRow').hidden = !open;
-      $('bLineT').setAttribute('aria-expanded', String(open));
-      if (open) $('cueLine').focus();
-    });
     $('cueLine').addEventListener('input', (e) => {
       if (!CUR.key) return;
       const inf = cueInfo(CUR.key);
@@ -4412,13 +4679,25 @@ self.onmessage = async (e) => {
     $('bAsrOne').addEventListener('click', () => { if (CUR.key) transcribe([CUR.key]); });
     $('bAsrStop').addEventListener('click', stopTranscribe);
     $('bStOk').addEventListener('click', () => markCue('ok'));
-    $('bNoteT').addEventListener('click', () => {
-      const open = $('noteRow').hidden;
-      $('noteRow').hidden = !open;
-      $('bNoteT').setAttribute('aria-expanded', String(open));
-      if (open) $('cueNote').focus();
-    });
-    $('cueNote').addEventListener('input', (e) => { if (!CUR.key) return; cueInfo(CUR.key).note = e.target.value; saveInfo(); renderTags(); updateList(); });
+    $('bCueMenu').addEventListener('click', () => openSheet());
+    $('lineBox').addEventListener('click', () => openSheet('cueLine'));
+    $('bSheetClose').addEventListener('click', closeSheet);
+    $('sheetBack').addEventListener('click', closeSheet);
+    $('tabs').addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) showView(t.dataset.view); });
+    $('cueSearch').addEventListener('input', () => updateList());
+    $('scriptTable').addEventListener('input', (e) => {
+      const el = e.target, key = el.closest('.st-row') && el.closest('.st-row').dataset.key;
+      if (!key) return;
+      const inf = cueInfo(key);
+      if (el.classList.contains('st-line')) { inf.line = el.value.trim(); inf.lineFromAsr = !!inf.asrText && inf.line === inf.asrText; }
+      else inf.char = el.value.trim();
+      saveInfo();
+      rhythmoCache.clear();
+      if (key === CUR.key) renderLine();
+      updateList();
+      clearTimeout(scriptSumTimer);
+      scriptSumTimer = setTimeout(() => { renderScript(); refreshCharFilter(); }, 400);
+    });    $('cueNote').addEventListener('input', (e) => { if (!CUR.key) return; cueInfo(CUR.key).note = e.target.value; saveInfo(); renderTags(); updateList(); });
     $('takeNote').addEventListener('input', (e) => {
       const t = takeById(CUR.cue, CUR.takeSel);
       if (!CUR.key || !t) return;
@@ -4495,14 +4774,16 @@ self.onmessage = async (e) => {
 
     document.addEventListener('keydown', (e) => {
       if (!S.keys.length || $('work').hidden) return;
+      if (!$('cueDlg').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeSheet(); } return; }
       const tgt = e.target;
       if (tgt && tgt.closest && tgt.closest('input, select, textarea')) return;
       const k = e.key, mod = e.metaKey || e.ctrlKey;
+      const act = !mod && !e.altKey && remoteAction(e.code);
+      if (act) { e.preventDefault(); runAction(act); return; }
+      if (!boothShown()) return; // other shortcuts, undo included, belong to the booth where you can see them work
       if (mod && (k === 'z' || k === 'Z')) { e.preventDefault(); undoEdit(e.shiftKey); return; }
       if (mod && (k === 'y' || k === 'Y')) { e.preventDefault(); undoEdit(true); return; }
       if (mod || e.altKey) return;
-      const act = remoteAction(e.code);
-      if (act) { e.preventDefault(); runAction(act); return; }
       if ((k === ' ' || k === 'Enter') && tgt && tgt.closest && tgt.closest('button, a, label')) return;
       if (k === ' ' || k === 'r' || k === 'R') { e.preventDefault(); onRec(); }
       else if (k === 'o' || k === 'O') play('orig');
@@ -4533,7 +4814,12 @@ self.onmessage = async (e) => {
     const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if (mq) { const f = () => { readTokens(); drawLanes(); }; if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); }
     let rt = 0;
-    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => drawLanes(), 80); });
+    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (currentView() === 'cues' && wide()) showView('booth'); drawLanes(); }, 80); });
+    // Toasts on phones sit above the record dock, whose height changes with its contents.
+    const dock = document.querySelector('#vBooth .dock');
+    if (dock && window.ResizeObserver) {
+      new ResizeObserver(() => { if (dock.offsetHeight) document.documentElement.style.setProperty('--dock-h', `${dock.offsetHeight}px`); }).observe(dock);
+    }
     setInterval(() => {
       if (!A.stream || document.hidden) return;
       const p = A.peak, m = $('meterBar');
