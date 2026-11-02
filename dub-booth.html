@@ -479,6 +479,45 @@ input[type="search"]:focus-visible { outline: 3px solid var(--guide); outline-of
 .sheet .cue-tags { margin: 0; }
 .sheet .tag-btn { min-height: 38px; padding: 0 14px; font-size: 14px; }
 .btn.danger-text { color: var(--rec); justify-self: start; padding-left: 0; padding-right: 0; }
+/* language picker: a button that opens a sheet with a search field over the list */
+.pick-btn {
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  font: inherit; font-size: 15px; text-align: left; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+#asrLangVal { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+#asrLangVal span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-btn .own { color: var(--muted); }
+.pick-btn svg { width: 22px; height: 22px; margin-left: auto; flex: none; fill: var(--muted); }
+.pick-btn:hover { background: var(--well); }
+.pick-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
+.pick-btn[disabled] { opacity: 0.5; cursor: default; }
+/* Phones: the sheet keeps to the part of the screen the keyboard leaves free (--vvh and --vvb come from
+   the visual viewport while it's open), so the search field and the first matches stay in view. */
+.sheet.picker {
+  display: flex; flex-direction: column; gap: 10px; overflow: hidden; max-height: none;
+  height: 88vh; height: calc(var(--vvh, 100dvh) * 0.88); bottom: var(--vvb, 0px);
+}
+.picker .sheet-head { position: static; padding-bottom: 0; }
+.pick-search { position: relative; flex: none; }
+.pick-search svg { position: absolute; left: 12px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); fill: var(--muted); pointer-events: none; }
+.pick-search input { -webkit-appearance: none; appearance: none; min-height: 46px; padding: 0 12px 0 40px; border-radius: 12px; background: var(--bg); font-size: 16px; }
+.pick-list { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; list-style: none; margin: 0 -8px; padding: 0 8px 4px; }
+.pick-opt { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 10px; border-radius: 10px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pick-opt .own { margin-left: auto; padding-left: 12px; color: var(--muted); font-size: 14px; }
+.pick-opt .tick { width: 18px; height: 18px; flex: none; fill: currentColor; visibility: hidden; }
+.pick-opt[aria-selected="true"] { font-weight: 700; }
+.pick-opt[aria-selected="true"] .tick { visibility: visible; }
+.pick-opt.active { background: var(--well); }
+@media (hover: hover) { .pick-opt:hover { background: var(--well); } }
+.pick-none { flex: 1 1 auto; padding: 4px 2px; color: var(--muted); font-size: 14px; }
+@media (min-width: 700px) {
+  .sheet.picker { height: min(600px, 80vh); bottom: auto; }
+}
+/* iPhone and iPad zoom the page into any text field set under 16px; keep them at 16px there. */
+@supports (-webkit-touch-callout: none) {
+  :root :is(input[type="text"], input[type="search"], input[type="number"], textarea, select) { font-size: 16px; }
+}
 /* On phones a toast sits just above the tab bar, and in the booth just above the record dock,
    so it never covers the record button. */
 @media (max-width: 999px) {
@@ -541,7 +580,7 @@ body.sheet-open { overflow: hidden; }
 
         <button class="line-box" type="button" id="lineBox" aria-label="Edit the line" hidden>
           <span class="line-char" id="lineChar" hidden></span>
-          <span class="line-text" id="lineText"></span>
+          <span class="line-text" id="lineText" dir="auto"></span>
         </button>
         <canvas class="rhythmo" id="cvRhythmo" aria-label="Rhythmo band: the words of the line scroll past the red line as they should be spoken" hidden></canvas>
 
@@ -646,13 +685,19 @@ body.sheet-open { overflow: hidden; }
           <p class="hint">A CSV or tab-separated file with columns for file name, line, character and note. A first row with column names is fine. A plain text file is read as one line per cue, in cue order.</p>
           <details class="more">
             <summary>Paste lines instead</summary>
-            <label class="field"><span>One line per cue, in cue order</span><textarea id="pasteLines" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
+            <label class="field"><span>One line per cue, in cue order</span><textarea id="pasteLines" dir="auto" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
             <button class="btn" type="button" id="bPasteLines">Use these lines</button>
           </details>
         </div>
         <div class="group-box">
           <h3>Transcribe the originals</h3>
-          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads a model of about 80 MB.</p>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. Set the language below before you start. The first time, it downloads about 100 MB.</p>
+          <div class="field"><span id="asrLangLbl">Language spoken in the originals</span>
+            <button class="pick-btn" type="button" id="asrLang" aria-haspopup="dialog" aria-expanded="false" aria-controls="langDlg" aria-labelledby="asrLangLbl asrLangVal">
+              <span id="asrLangVal">English</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z"/></svg>
+            </button>
+          </div>
           <div class="row">
             <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
             <button class="btn small" type="button" id="bAsrOne">This cue only</button>
@@ -844,11 +889,25 @@ body.sheet-open { overflow: hidden; }
     </div>
     <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
     <datalist id="charList"></datalist>
-    <label class="field"><span>Line to say</span><textarea id="cueLine" rows="2" placeholder="What to say in this cue"></textarea></label>
+    <label class="field"><span>Line to say</span><textarea id="cueLine" dir="auto" rows="2" placeholder="What to say in this cue"></textarea></label>
     <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
     <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
     <button class="btn quiet danger-text" type="button" id="bDel" aria-label="Delete all takes for this cue">Delete all takes for this cue</button>
   </div>
+</div>
+
+<div class="sheet picker" id="langDlg" role="dialog" aria-modal="true" aria-labelledby="langTitle" hidden>
+  <div class="sheet-head">
+    <h2 id="langTitle">Language spoken in the originals</h2>
+    <button class="icon-btn" type="button" id="bLangClose" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.3 5.71 12 12.01l-6.3-6.3-1.41 1.41 6.3 6.3-6.3 6.3 1.41 1.41 6.3-6.3 6.3 6.3 1.41-1.41-6.3-6.3 6.3-6.3z"/></svg></button>
+  </div>
+  <div class="pick-search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <input type="search" id="langSearch" placeholder="Search languages" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"
+      role="combobox" aria-expanded="true" aria-controls="langList" aria-autocomplete="list" aria-label="Search languages">
+  </div>
+  <ul class="pick-list" id="langList" role="listbox" aria-label="Languages"></ul>
+  <p class="pick-none" id="langNone" aria-live="polite" hidden></p>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -1200,7 +1259,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}',
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en',
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -3478,8 +3537,9 @@ registerProcessor('dub-tap', DubTap);
       : withLine ? `${withLine} of ${n} cues have a line${chars.length ? `, spoken by ${chars.length} character${chars.length === 1 ? '' : 's'}` : ''}.`
         : 'No lines yet. Import a script, paste lines, transcribe the originals, or type each cue’s line in the list below.';
     $('rhythmo').checked = S.settings.rhythmo;
+    renderAsrLang();
     $('charFolders').checked = S.settings.charFolders;
-    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines']) $(id).disabled = !n || !!A.asr;
+    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang']) $(id).disabled = !n || !!A.asr;
   }
   const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
   function refreshCharFilter() {
@@ -3582,60 +3642,255 @@ registerProcessor('dub-tap', DubTap);
 
   // ---------- transcribing the originals ----------
   // Speech recognition (Whisper, through Transformers.js) runs in a worker on this device. The
-  // library and the model download the first time; after that the browser keeps them.
-  const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.web.min.js';
-  const ASR_SRC = `
-import { pipeline, env } from '${ASR_LIB}';
-env.allowLocalModels = false;
-try { env.backends.onnx.wasm.numThreads = 1; } catch (_) {}
-const MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
-let asr = null, loading = null;
-async function load() {
-  let last = null;
-  for (const m of MODELS) {
-    try {
-      asr = await pipeline('automatic-speech-recognition', m, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, progress: p.progress } }) });
-      self.postMessage({ type: 'ready', model: m });
-      return;
-    } catch (e) { last = e; }
+  // library and the model download the first time; after that the browser keeps the model.
+  // This is the library's self-contained build. Its "web" build leaves two of its own imports for
+  // a bundler to fill in, so no browser can load it as it is.
+  const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+  // The larger model first. A device that can't load it gets the smaller one, in a fresh worker.
+  const ASR_MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
+  // The languages these Whisper models know, by the codes they take. The library can't tell which
+  // one is spoken (it would assume English), so the person picks it.
+  const ASR_LANGS = {
+    af: 'Afrikaans', sq: 'Albanian', am: 'Amharic', ar: 'Arabic', hy: 'Armenian', as: 'Assamese', az: 'Azerbaijani', ba: 'Bashkir',
+    eu: 'Basque', be: 'Belarusian', bn: 'Bengali', bs: 'Bosnian', br: 'Breton', bg: 'Bulgarian', my: 'Burmese', ca: 'Catalan',
+    zh: 'Chinese', hr: 'Croatian', cs: 'Czech', da: 'Danish', nl: 'Dutch', en: 'English', et: 'Estonian', fo: 'Faroese',
+    fi: 'Finnish', fr: 'French', gl: 'Galician', ka: 'Georgian', de: 'German', el: 'Greek', gu: 'Gujarati', ht: 'Haitian Creole',
+    ha: 'Hausa', haw: 'Hawaiian', he: 'Hebrew', hi: 'Hindi', hu: 'Hungarian', is: 'Icelandic', id: 'Indonesian', it: 'Italian',
+    ja: 'Japanese', jw: 'Javanese', kn: 'Kannada', kk: 'Kazakh', km: 'Khmer', ko: 'Korean', lo: 'Lao', la: 'Latin',
+    lv: 'Latvian', ln: 'Lingala', lt: 'Lithuanian', lb: 'Luxembourgish', mk: 'Macedonian', mg: 'Malagasy', ms: 'Malay', ml: 'Malayalam',
+    mt: 'Maltese', mi: 'Māori', mr: 'Marathi', mn: 'Mongolian', ne: 'Nepali', no: 'Norwegian', nn: 'Norwegian Nynorsk', oc: 'Occitan',
+    ps: 'Pashto', fa: 'Persian', pl: 'Polish', pt: 'Portuguese', pa: 'Punjabi', ro: 'Romanian', ru: 'Russian', sa: 'Sanskrit',
+    sr: 'Serbian', sn: 'Shona', sd: 'Sindhi', si: 'Sinhala', sk: 'Slovak', sl: 'Slovenian', so: 'Somali', es: 'Spanish',
+    su: 'Sundanese', sw: 'Swahili', sv: 'Swedish', tl: 'Tagalog', tg: 'Tajik', ta: 'Tamil', tt: 'Tatar', te: 'Telugu',
+    th: 'Thai', bo: 'Tibetan', tr: 'Turkish', tk: 'Turkmen', uk: 'Ukrainian', ur: 'Urdu', uz: 'Uzbek', vi: 'Vietnamese',
+    cy: 'Welsh', yi: 'Yiddish', yo: 'Yoruba',
+  };
+  const asrLang = () => (ASR_LANGS[S.settings.asrLang] ? S.settings.asrLang : 'en');
+  // ---------- the language picker: a sheet with a search field ----------
+  // Every language once, sorted by its English name, with its own name where the browser knows it.
+  const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  let LANGS = [], langShown = [], langActive = -1, langFrom = null, vvOn = false;
+  function buildLangs() {
+    LANGS = Object.entries(ASR_LANGS).map(([code, name]) => {
+      const ic = code === 'jw' ? 'jv' : code; // Whisper's code for Javanese isn't the standard one
+      let own = '';
+      try { own = new Intl.DisplayNames([ic], { type: 'language' }).of(ic) || ''; } catch (_) { own = ''; }
+      if ([name.toLowerCase(), ic, code].includes(own.toLowerCase())) own = '';
+      return { code, ic, name, own, n: norm(name), o: norm(own) };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'en'));
   }
-  throw last || new Error('No speech model could load');
+  // Matches on the English name, the language's own name or its code, accents ignored. Names that
+  // start with the search come first, then names with a word that does, then any other match.
+  function langMatches(q) {
+    q = norm(q);
+    if (!q) return LANGS.slice();
+    const words = (t) => t.split(/[\s-]+/);
+    const hits = [];
+    for (const l of LANGS) {
+      const rank = l.code === q || l.n.startsWith(q) || (l.o && l.o.startsWith(q)) ? 0
+        : words(l.n).some((w) => w.startsWith(q)) || (l.o && words(l.o).some((w) => w.startsWith(q))) ? 1
+          : l.n.includes(q) || (l.o && l.o.includes(q)) ? 2 : -1;
+      if (rank >= 0) hits.push([rank, l]);
+    }
+    return hits.sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name, 'en')).map((h) => h[1]);
+  }
+  function langLabel(el, l) {
+    el.textContent = '';
+    const nm = document.createElement('span');
+    nm.textContent = l.name;
+    el.append(nm);
+    if (l.own) {
+      const o = document.createElement('span');
+      o.className = 'own'; o.dir = 'auto'; o.lang = l.ic; o.textContent = l.own;
+      el.append(o);
+    }
+  }
+  function renderAsrLang() {
+    const l = LANGS.find((x) => x.code === asrLang());
+    if (l) langLabel($('asrLangVal'), l);
+  }
+  function renderLangList() {
+    const q = $('langSearch').value, cur = asrLang(), ul = $('langList');
+    langShown = langMatches(q);
+    ul.textContent = '';
+    const frag = document.createDocumentFragment();
+    for (const l of langShown) {
+      const li = document.createElement('li');
+      li.className = 'pick-opt'; li.id = `lang-${l.code}`; li.dataset.code = l.code;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', String(l.code === cur));
+      const tick = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      tick.setAttribute('viewBox', '0 0 24 24'); tick.setAttribute('class', 'tick'); tick.setAttribute('aria-hidden', 'true');
+      tick.innerHTML = '<path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
+      const label = document.createElement('span');
+      label.style.display = 'contents';
+      langLabel(label, l);
+      li.append(tick, label);
+      frag.append(li);
+    }
+    ul.append(frag);
+    $('langNone').hidden = langShown.length > 0;
+    $('langNone').textContent = langShown.length ? '' : `No language matches “${q.trim()}”.`;
+    ul.hidden = !langShown.length;
+    langActive = -1;
+    setLangActive(q.trim() ? 0 : langShown.findIndex((l) => l.code === cur), !q.trim());
+  }
+  // The highlighted row follows the arrow keys; Enter picks it. Focus stays in the search field.
+  function setLangActive(i, center) {
+    const items = $('langList').children;
+    if (items[langActive]) items[langActive].classList.remove('active');
+    langActive = items.length ? Math.max(0, Math.min(i, items.length - 1)) : -1;
+    const el = items[langActive];
+    if (!el) { $('langSearch').removeAttribute('aria-activedescendant'); return; }
+    el.classList.add('active');
+    $('langSearch').setAttribute('aria-activedescendant', el.id);
+    const ul = $('langList'), top = el.offsetTop, bottom = top + el.offsetHeight;
+    if (center) ul.scrollTop = top - (ul.clientHeight - el.offsetHeight) / 2;
+    else if (top < ul.scrollTop) ul.scrollTop = top;
+    else if (bottom > ul.scrollTop + ul.clientHeight) ul.scrollTop = bottom - ul.clientHeight;
+  }
+  // With the on-screen keyboard up, fixed sheets would sit behind it; this keeps the sheet in the visible part.
+  function fitLangSheet() {
+    const vv = window.visualViewport, el = $('langDlg');
+    if (!vv) return;
+    el.style.setProperty('--vvh', `${vv.height}px`);
+    el.style.setProperty('--vvb', `${Math.max(0, document.documentElement.clientHeight - vv.height - vv.offsetTop)}px`);
+    setLangActive(langActive);
+  }
+  function watchViewport(on) {
+    const vv = window.visualViewport;
+    if (!vv || on === vvOn) return;
+    vvOn = on;
+    for (const ev of ['resize', 'scroll']) vv[on ? 'addEventListener' : 'removeEventListener'](ev, fitLangSheet);
+    if (on) fitLangSheet();
+    else { $('langDlg').style.removeProperty('--vvh'); $('langDlg').style.removeProperty('--vvb'); }
+  }
+  function openLangPicker() {
+    if ($('asrLang').disabled || !$('langDlg').hidden) return;
+    langFrom = document.activeElement;
+    $('langSearch').value = '';
+    $('sheetBack').hidden = false;
+    $('langDlg').hidden = false;
+    document.querySelector('.wrap').inert = true;
+    document.body.classList.add('sheet-open');
+    $('asrLang').setAttribute('aria-expanded', 'true');
+    watchViewport(true);
+    renderLangList();
+    $('langSearch').focus(); // in the tap itself, so phones bring up the keyboard
+  }
+  function closeLangPicker() {
+    if ($('langDlg').hidden) return;
+    $('langDlg').hidden = true;
+    $('sheetBack').hidden = true;
+    document.querySelector('.wrap').inert = false;
+    document.body.classList.remove('sheet-open');
+    $('asrLang').setAttribute('aria-expanded', 'false');
+    watchViewport(false);
+    if (langFrom && langFrom.focus) langFrom.focus();
+  }
+  function chooseLang(code) {
+    if (ASR_LANGS[code]) { S.settings.asrLang = code; saveMeta(true); renderAsrLang(); }
+    closeLangPicker();
+  }
+  // The speech runtime asks for shared memory that can grow to 4 GB. iPhone and iPad Safari may
+  // refuse to set that much aside, and these models need well under 1 GB, so there it gets 1 GB.
+  const appleMobile = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const asrSource = (model, memCap) => `
+const LIB = ${JSON.stringify(ASR_LIB)}, MODEL = ${JSON.stringify(model)}, MEM_CAP = ${memCap | 0};
+if (MEM_CAP) {
+  const Mem = WebAssembly.Memory;
+  const Capped = function Memory(d) {
+    if (!d || !d.shared || !(d.maximum > MEM_CAP)) return new Mem(d);
+    let err = null;
+    for (const max of [MEM_CAP, MEM_CAP >> 1]) {
+      try { return new Mem(Object.assign({}, d, { maximum: Math.max(max, d.initial || 0) })); } catch (e) { err = e; }
+    }
+    throw err;
+  };
+  Capped.prototype = Mem.prototype;
+  WebAssembly.Memory = Capped;
+}
+// Whisper models exported without cross-attentions can't time single words; their phrases are timed instead.
+let asr = null, loading = null, word = /_timestamped$/.test(MODEL);
+const report = (stage, id, e) => self.postMessage({ type: 'error', stage, id, message: String((e && e.message) || e || 'unknown error') });
+async function load() {
+  let lib;
+  try { lib = await import(LIB); } catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { stage: 'lib' }); }
+  const { pipeline, env } = lib;
+  env.allowLocalModels = false;
+  try { env.backends.onnx.wasm.numThreads = 1; } catch (_) {}
+  try {
+    asr = await pipeline('automatic-speech-recognition', MODEL, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, loaded: p.loaded, total: p.total } }) });
+  } catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { stage: 'model' }); }
+  self.postMessage({ type: 'ready', model: MODEL });
 }
 self.onmessage = async (e) => {
   const m = e.data;
+  try { loading = loading || load(); await loading; } catch (err) { report(err.stage || 'model', m.id, err); return; }
   try {
-    if (!asr) { loading = loading || load(); await loading; }
-    let out, segments = false;
-    try { out = await asr(m.audio, { return_timestamps: 'word', chunk_length_s: 30, stride_length_s: 5 }); }
-    catch (_) { out = await asr(m.audio, { return_timestamps: true, chunk_length_s: 30, stride_length_s: 5 }); segments = true; }
+    const opts = { chunk_length_s: 30, stride_length_s: 5, language: m.language || 'en', task: 'transcribe' };
+    let out = null;
+    if (word) {
+      try { out = await asr(m.audio, Object.assign({ return_timestamps: 'word' }, opts)); } catch (_) { word = false; }
+    }
+    const segments = !out;
+    if (!out) out = await asr(m.audio, Object.assign({ return_timestamps: true }, opts));
     self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments });
-  } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+  } catch (err) { report('run', m.id, err); }
 };`;
-  let asrW = null, asrSeq = 0;
+  let asrW = null, asrSeq = 0, asrModel = 0;
   const asrWait = new Map();
-  function asrFail(msg) { for (const w of asrWait.values()) w.rej(new Error(msg)); asrWait.clear(); }
+  const asrErr = (message, stage) => Object.assign(new Error(message), { stage });
+  function asrFail(err) { for (const w of asrWait.values()) w.rej(err); asrWait.clear(); }
+  function asrStop() { if (asrW) { try { asrW.terminate(); } catch (_) { /* already gone */ } asrW = null; } }
   function asrWorker() {
     if (asrW) return asrW;
-    asrW = new Worker(URL.createObjectURL(new Blob([ASR_SRC], { type: 'text/javascript' })), { type: 'module' });
-    asrW.onmessage = (e) => {
+    const src = asrSource(ASR_MODELS[asrModel], appleMobile() ? 16384 : 0);
+    const w = asrW = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+    const files = new Map(); // file -> [bytes loaded, bytes in all]
+    w.onmessage = (e) => {
       const d = e.data;
       if (d.type === 'progress') {
         const p = d.p || {};
-        if (p.status === 'progress' && typeof p.progress === 'number') $('asrText').textContent = `Downloading the speech model: ${Math.round(p.progress)}%`;
+        if (p.status === 'progress' && p.file && p.total) files.set(p.file, [p.loaded || 0, p.total]);
+        else if (p.status === 'done' && files.has(p.file)) files.set(p.file, [files.get(p.file)[1], files.get(p.file)[1]]);
+        else return;
+        let got = 0, all = 0;
+        for (const [l, t] of files.values()) { got += l; all += t; }
+        $('asrText').textContent = got < all ? `Loading the speech model: ${Math.round(got / 1048576)} of ${Math.round(all / 1048576)} MB` : 'Starting the speech model…';
         return;
       }
       if (d.type === 'ready') { $('asrText').textContent = 'Speech model ready. Transcribing…'; return; }
-      const w = asrWait.get(d.id);
-      if (!w) return;
+      const job = asrWait.get(d.id);
+      if (!job) return;
       asrWait.delete(d.id);
-      if (d.type === 'error') w.rej(new Error(d.message)); else w.res(d);
+      if (d.type === 'error') job.rej(asrErr(d.message, d.stage)); else job.res(d);
     };
-    asrW.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); asrFail((e && e.message) || 'Speech recognition couldn’t start.'); try { asrW.terminate(); } catch (_) { /* ignore */ } asrW = null; };
-    return asrW;
+    // Only fires if the worker itself can't run; problems inside it arrive as messages.
+    w.onerror = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      if (asrW === w) asrStop();
+      asrFail(asrErr((e && e.message) || 'the speech worker stopped', 'worker'));
+    };
+    return w;
   }
-  function asrRun(audio) {
+  function asrRun(audio, language) {
     const id = ++asrSeq;
-    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio }, [audio.buffer]); });
+    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio, language }, [audio.buffer]); });
+  }
+  // What went wrong, in words, with the browser's own message kept for reporting.
+  function asrProblem(e) {
+    const raw = String((e && e.message) || e || 'unknown error'), stage = e && e.stage;
+    if (navigator.onLine === false && (stage === 'lib' || stage === 'model')) {
+      return { short: 'You’re offline.', long: 'You’re offline. Speech recognition needs a connection the first time, to download the library and the model.' };
+    }
+    if (stage === 'lib') return { short: 'The speech library didn’t download.', long: `The speech recognition library didn’t download. Check the connection and try again. (${raw})` };
+    if (/memory|alloc|RangeError/i.test(raw)) return { short: 'Not enough memory on this device.', long: `This device ran out of memory for speech recognition. Close other apps and try again. (${raw})` };
+    if (stage === 'model' && /fetch|network|load failed|could not locate|status|connection/i.test(raw)) {
+      return { short: 'The speech model didn’t download.', long: `The speech model didn’t download. Check the connection and try again. (${raw})` };
+    }
+    if (stage === 'run') return { short: 'Speech recognition failed on a cue.', long: `Speech recognition failed on this cue. (${raw})` };
+    return { short: 'Speech recognition couldn’t start.', long: `Speech recognition couldn’t start on this device. (${raw})` };
   }
   // Turns recognizer output into timed words; whole sentences are spread over their own time span.
   function wordsOf(out) {
@@ -3657,39 +3912,55 @@ self.onmessage = async (e) => {
     $('asrBar').value = 0;
     renderScript();
     let done = 0, failed = null;
+    const lang = asrLang(), langName = ASR_LANGS[lang];
     for (const key of keys) {
       if (A.asr.stop) break;
-      $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}…`;
+      $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}, in ${langName}…`;
       try {
         const g = await getOriginal(key);
         const a16 = new Float32Array(resample(monoOf(g.buffer), g.buffer.sampleRate, 16000));
-        const out = await asrRun(a16);
+        let out;
+        for (;;) {
+          try { out = await asrRun(a16.slice(), lang); break; } catch (e) {
+            // A model that won't load, or runs out of memory, makes way for the next one.
+            const load = e.stage === 'model' || e.stage === 'worker' || (e.stage === 'run' && /memory|alloc|RangeError/i.test(e.message));
+            if (A.asr.stop || !load || asrModel >= ASR_MODELS.length - 1) throw e;
+            asrStop();
+            asrModel++;
+            $('asrText').textContent = 'Trying a smaller speech model…';
+          }
+        }
         if (A.asr.stop) break;
-        const inf = cueInfo(key);
+        const inf = cueInfo(key), before = inf.asrText;
         inf.words = wordsOf(out);
         inf.asrText = String(out.text || '').trim();
-        if (!inf.line && inf.asrText) { inf.line = inf.asrText; inf.lineFromAsr = true; }
+        // A typed or imported line stays; one that only came from an earlier transcription is replaced.
+        if (inf.asrText && (!inf.line || inf.lineFromAsr || (before && inf.line === before))) { inf.line = inf.asrText; inf.lineFromAsr = true; }
         saveInfo();
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
-      } catch (e) { failed = e; break; }
+      } catch (e) { if (!A.asr.stop) failed = e; break; }
     }
     const stopped = A.asr.stop;
     A.asr = null;
+    // A loaded model holds a few hundred MB; let it go so recording keeps the memory it needs.
+    asrStop();
+    if (failed && asrModel === ASR_MODELS.length - 1 && failed.stage !== 'run') asrModel = 0; // nothing loaded: start over next time
     $('bAsrStop').hidden = true;
     $('asrBar').hidden = true;
     afterScriptChange();
     if (failed) {
-      $('asrText').textContent = 'Speech recognition didn’t work here. It needs an internet connection the first time, to download the model.';
-      toast(`Transcription stopped: ${failed.message || failed}`);
-    } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}.`;
+      const p = asrProblem(failed);
+      $('asrText').textContent = done ? `Transcribed ${done} cue${done === 1 ? '' : 's'}, then stopped. ${p.long}` : p.long;
+      toast(`Transcription stopped. ${p.short}`);
+    } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}, in ${langName}.`;
   }
   function stopTranscribe() {
     if (!A.asr) return;
     A.asr.stop = true;
-    if (asrW) { asrW.terminate(); asrW = null; }
-    asrFail('stopped');
+    asrStop();
+    asrFail(asrErr('stopped', 'stopped'));
   }
 
   // ---------- lining up with the original ----------
@@ -4458,7 +4729,7 @@ self.onmessage = async (e) => {
       const fn = document.createElement('span'); fn.textContent = k;
       nm.append(no, fn);
       const line = document.createElement('input');
-      line.type = 'text'; line.className = 'st-line'; line.value = inf.line || ''; line.placeholder = 'Line to say';
+      line.type = 'text'; line.className = 'st-line'; line.dir = 'auto'; line.value = inf.line || ''; line.placeholder = 'Line to say';
       line.setAttribute('aria-label', `Line for cue ${i + 1}, ${k}`);
       const ch = document.createElement('input');
       ch.type = 'text'; ch.className = 'st-char'; ch.value = inf.char || ''; ch.placeholder = 'Character';
@@ -4579,6 +4850,18 @@ self.onmessage = async (e) => {
     $('fmtDetected').hidden = s.fmt !== 'match';
   }
   function bindUI() {
+    buildLangs();
+    $('asrLang').addEventListener('click', openLangPicker);
+    $('bLangClose').addEventListener('click', closeLangPicker);
+    $('langSearch').addEventListener('input', () => renderLangList());
+    $('langSearch').addEventListener('keydown', (e) => {
+      const n = langShown.length;
+      if (e.key === 'ArrowDown' && n) { e.preventDefault(); setLangActive(langActive < 0 ? 0 : (langActive + 1) % n); }
+      else if (e.key === 'ArrowUp' && n) { e.preventDefault(); setLangActive(langActive <= 0 ? n - 1 : langActive - 1); }
+      else if (e.key === 'Enter') { e.preventDefault(); const l = langShown[langActive] || langShown[0]; if (l) chooseLang(l.code); }
+      else if (e.key === 'Escape' && $('langSearch').value) { e.preventDefault(); $('langSearch').value = ''; renderLangList(); } // a second Escape closes
+    });
+    $('langList').addEventListener('click', (e) => { const li = e.target.closest('.pick-opt'); if (li) chooseLang(li.dataset.code); });
     $('pick').addEventListener('change', (e) => { const files = Array.from(e.target.files || []); e.target.value = ''; loadPicked(files); });
     $('bSample').addEventListener('click', loadSamples);
     $('bRec').addEventListener('click', onRec);
@@ -4682,7 +4965,7 @@ self.onmessage = async (e) => {
     $('bCueMenu').addEventListener('click', () => openSheet());
     $('lineBox').addEventListener('click', () => openSheet('cueLine'));
     $('bSheetClose').addEventListener('click', closeSheet);
-    $('sheetBack').addEventListener('click', closeSheet);
+    $('sheetBack').addEventListener('click', () => { closeSheet(); closeLangPicker(); });
     $('tabs').addEventListener('click', (e) => { const t = e.target.closest('.tab'); if (t) showView(t.dataset.view); });
     $('cueSearch').addEventListener('input', () => updateList());
     $('scriptTable').addEventListener('input', (e) => {
@@ -4775,6 +5058,7 @@ self.onmessage = async (e) => {
     document.addEventListener('keydown', (e) => {
       if (!S.keys.length || $('work').hidden) return;
       if (!$('cueDlg').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeSheet(); } return; }
+      if (!$('langDlg').hidden) { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); closeLangPicker(); } return; }
       const tgt = e.target;
       if (tgt && tgt.closest && tgt.closest('input, select, textarea')) return;
       const k = e.key, mod = e.metaKey || e.ctrlKey;
