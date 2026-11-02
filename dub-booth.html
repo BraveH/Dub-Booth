@@ -1294,7 +1294,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
   // Shown in Settings and in the transcription log, to tell which copy of the app is running.
-  const APP_VERSION = '2026.11.02-8';
+  const APP_VERSION = '2026.11.02-9';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -3629,10 +3629,25 @@ registerProcessor('dub-tap', DubTap);
   function rhythmoWords(key) {
     if (!key) return [];
     const inf = S.info.get(key) || {}, g = CUR.key === key ? CUR.guide : null;
-    if (inf.words && inf.words.length && (!inf.line || inf.lineFromAsr || inf.line === inf.asrText)) return inf.words;
+    const fromAsr = !!inf.asrText && !!inf.line && (inf.lineFromAsr || inf.line === inf.asrText);
+    if (fromAsr && inf.wordTiming && inf.words && inf.words.length) return inf.words; // timed word by word already
     if (!inf.line || !g) return [];
-    const ck = `${key}|${inf.line}|${g.dur}`;
-    if (!rhythmoCache.has(ck)) rhythmoCache.set(ck, spreadWords(inf.line, inf.words && inf.words.length ? inf.words.map((w) => [w.s, w.e]) : speechSpans(g)));
+    const segs = fromAsr && Array.isArray(inf.segs) ? inf.segs : [];
+    const ck = `${key}|${inf.line}|${g.dur}|${segs.length}`;
+    if (!rhythmoCache.has(ck)) {
+      const speech = speechSpans(g);
+      let words;
+      if (segs.length) {
+        // The recognizer's phrases say roughly when each was said; the voiced stretches within each
+        // phrase's time place its words.
+        words = [];
+        for (const sg of segs) {
+          const inside = speech.map(([a, b]) => [Math.max(a, sg.s), Math.min(b, sg.e)]).filter(([a, b]) => b - a > 0.04);
+          words.push(...spreadWords(sg.text, inside.length ? inside : [[sg.s, sg.e]]));
+        }
+      } else words = spreadWords(inf.line, speech);
+      rhythmoCache.set(ck, words);
+    }
     return rhythmoCache.get(ck);
   }
   // Stretches of the original with speech in them (from its loudness envelope).
@@ -3652,22 +3667,65 @@ registerProcessor('dub-tap', DubTap);
     const out = merged.filter((sp) => sp[1] - sp[0] >= 0.06);
     return out.length ? out : [[0, g.dur]];
   }
+  // Fits a line's words to the voiced stretches of the original. Whole words go to each stretch, in
+  // order, so no word reaches across a pause, and within a stretch each word gets time in proportion
+  // to its letters. Which words go to which stretch is chosen so the speaking rate (letters a second)
+  // stays steady from stretch to stretch, and so pauses fall where the text has punctuation: people
+  // pause at a full stop far more than mid-sentence. A short stretch can be left without words (a
+  // breath, a cough).
   function spreadWords(line, spans) {
-    const words = line.split(/\s+/).filter(Boolean);
+    const words = String(line || '').split(/\s+/).filter(Boolean);
+    spans = (spans || []).filter((sp) => sp[1] - sp[0] > 1e-6).map((sp) => sp.slice());
     if (!words.length || !spans.length) return [];
-    const weight = words.map((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 1), total = spans.reduce((n, sp) => n + sp[1] - sp[0], 0);
-    const per = total / weight.reduce((a, b) => a + b, 0), out = [];
-    let si = 0, t = spans[0][0];
-    words.forEach((w, i) => {
-      let need = weight[i] * per;
-      const s0 = t;
-      while (need > 1e-9 && si < spans.length) {
-        const room = spans[si][1] - t;
-        if (need <= room + 1e-9) { t += need; need = 0; }
-        else { need -= room; si++; if (si < spans.length) t = spans[si][0]; }
+    // Many short stretches: join the ones with the shortest pauses between them, to keep this quick.
+    while (spans.length > 40) {
+      let k = 0;
+      for (let q = 1; q < spans.length - 1; q++) if (spans[q + 1][0] - spans[q][1] < spans[k + 1][0] - spans[k][1]) k = q;
+      spans[k][1] = spans[k + 1][1];
+      spans.splice(k + 1, 1);
+    }
+    const n = words.length, m = spans.length;
+    const wt = words.map((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 1), cum = [0];
+    for (const x of wt) cum.push(cum[cum.length - 1] + x);
+    const dur = spans.map((sp) => sp[1] - sp[0]), rate = cum[n] / dur.reduce((a, b) => a + b, 0);
+    // What a pause after each word costs: nothing after a full stop, a little after a comma, more elsewhere.
+    const pauseCost = words.map((w) => (/[.!?…。！？][)\]"'»”’」』]*$/.test(w) ? 0 : /[,;:，、；：—][)\]"'»”’」』]*$/.test(w) ? 0.12 : 0.5));
+    let groups;
+    if (m === 1 || n > 400) groups = null;
+    else {
+      // f[k][j]: the best cost of the first j words in the first k stretches. A stretch with words costs
+      // the square of how far (as a log ratio) its speaking rate is from the line's; one left empty
+      // costs more the longer it is; and each pause between words costs what the word before it says.
+      const f = [], from = [];
+      for (let k = 0; k <= m; k++) { f.push(new Float64Array(n + 1).fill(Infinity)); from.push(new Int32Array(n + 1)); }
+      f[0][0] = 0;
+      for (let k = 1; k <= m; k++) {
+        for (let j = 0; j <= n; j++) {
+          let best = Infinity, arg = 0;
+          for (let i = 0; i <= j; i++) {
+            const prev = f[k - 1][i];
+            if (prev === Infinity) continue;
+            let c;
+            if (j === i) c = prev + (dur[k - 1] / 0.35) ** 2;
+            else { const r = Math.log((cum[j] - cum[i]) / dur[k - 1] / rate); c = prev + r * r + (i > 0 ? pauseCost[i - 1] : 0); }
+            if (c < best) { best = c; arg = i; }
+          }
+          f[k][j] = best; from[k][j] = arg;
+        }
       }
-      out.push({ w, s: s0, e: Math.max(s0 + 0.04, t) });
-      if (si < spans.length && t >= spans[si][1] - 1e-9 && si + 1 < spans.length) { si++; t = spans[si][0]; }
+      groups = new Array(m);
+      for (let k = m, j = n; k >= 1; k--) { const i = from[k][j]; groups[k - 1] = [i, j]; j = i; }
+    }
+    if (!groups) { // one stretch (or a very long text): run the words through the stretches in turn
+      groups = [[0, n]];
+      spans = [[spans[0][0], spans[spans.length - 1][1]]];
+    }
+    const out = [];
+    groups.forEach(([i, j], k) => {
+      if (j <= i) return;
+      const [a, b] = spans[k], unit = (b - a) / (cum[j] - cum[i]);
+      let t = a;
+      for (let q = i; q < j; q++) { const e = q === j - 1 ? b : t + wt[q] * unit; out.push({ w: words[q], s: t, e }); t = e; }
     });
     return out;
   }
@@ -3677,7 +3735,7 @@ registerProcessor('dub-tap', DubTap);
     if (cv.hidden) return;
     const dpr = sizeCanvas(cv), c = cv.getContext('2d'), W = cv.width, H = cv.height;
     c.clearRect(0, 0, W, H);
-    const T = now != null ? now : CUR.sel ? CUR.sel.a : CUR.cursor, span = Math.max(3, Math.min(6, (W / dpr) / 80)), lead = 0.25;
+    const T = now != null ? now : CUR.sel ? CUR.sel.a : CUR.cursor, span = Math.max(3, Math.min(6, (W / dpr) / 110)), lead = 0.25;
     const v0 = T - span * lead, x = (t) => ((t - v0) / span) * W;
     c.textBaseline = 'middle';
     c.font = `600 ${17 * dpr}px ${TOK.display}`;
@@ -3690,7 +3748,7 @@ registerProcessor('dub-tap', DubTap);
       c.fillRect(xa, H - 7 * dpr, Math.max(2 * dpr, xb - xa - 2 * dpr), 3 * dpr);
       c.globalAlpha = 1;
       // Each word is squeezed or widened to span its time, as on a dubbing rhythmo band.
-      const tw = Math.max(1, c.measureText(wd.w).width), sc = clamp((xb - xa - 2 * dpr) / tw, 0.55, 2.2);
+      const tw = Math.max(1, c.measureText(wd.w).width), sc = clamp((xb - xa - 2 * dpr) / tw, 0.35, 2.2);
       c.save();
       c.translate(xa, H / 2 - 3 * dpr);
       c.scale(sc, 1);
@@ -4148,6 +4206,9 @@ self.onmessage = async (e) => {
         }
         const inf = cueInfo(key), before = inf.asrText;
         inf.words = wordsOf(out);
+        inf.wordTiming = !out.segments;
+        inf.segs = out.segments ? (out.chunks || []).filter((c) => Array.isArray(c.t) && c.t[0] != null && String(c.text || '').trim())
+          .map((c) => ({ s: c.t[0], e: c.t[1] == null ? c.t[0] + 0.4 : Math.max(c.t[0] + 0.1, c.t[1]), text: String(c.text).trim() })) : null;
         inf.asrText = String(out.text || '').trim();
         inf.asrLang = lang;
         // A typed or imported line stays; one that only came from an earlier transcription is replaced.
