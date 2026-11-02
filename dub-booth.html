@@ -471,7 +471,13 @@ input[type="search"]:focus-visible { outline: 3px solid var(--guide); outline-of
 /* every line, in the script view */
 .script-table { display: grid; gap: 8px; }
 .st-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, 30%); gap: 6px 8px; padding: 10px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
-.st-name { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); }
+.st-name { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 12.5px/1.3 var(--font-mono); color: var(--muted); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.st-check { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--ink); cursor: pointer; }
+.st-name .st-done { margin-left: auto; flex: none; overflow: visible; font: 600 11px/1 var(--font-ui); letter-spacing: 0.02em; color: var(--muted); }
+/* the selection bar stays in view while the list scrolls */
+.st-tools { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 -16px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 14px; }
+.st-tools .count { margin-right: auto; font-weight: 600; }
+@media (min-width: 1000px) { .st-tools { top: 57px; } }
 .st-name b { color: var(--ink); font-weight: 700; flex: none; }
 .st-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-row input { min-height: 40px; }
@@ -704,7 +710,7 @@ body.sheet-open { overflow: hidden; }
         </div>
         <div class="group-box">
           <h3>Transcribe the originals</h3>
-          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. Set the language below before you start. The first time, it downloads about 100 MB.</p>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down what each original says. Select the cues to transcribe in the list below; the ones not transcribed yet start selected. Lines you typed or imported stay as they are. Set the language before you start. The first time, it downloads its model, up to about 100 MB.</p>
           <div class="field"><span id="asrLangLbl">Language spoken in the originals</span>
             <button class="pick-btn" type="button" id="asrLang" aria-haspopup="dialog" aria-expanded="false" aria-controls="langDlg" aria-labelledby="asrLangLbl asrLangVal">
               <span id="asrLangVal">English</span>
@@ -713,13 +719,14 @@ body.sheet-open { overflow: hidden; }
           </div>
           <label class="field"><span>Speech model</span>
             <select id="asrSize">
-              <option value="standard">Standard: more accurate, needs more memory</option>
-              <option value="light">Light: less accurate, needs less memory</option>
+              <option value="auto">Best for this device and language</option>
+              <option value="whisper-base">Whisper Base: all languages, needs about 1 GB of memory</option>
+              <option value="whisper-tiny">Whisper Tiny: all languages, least memory, less accurate</option>
             </select>
           </label>
+          <p class="hint" id="asrModelHint"></p>
           <div class="row">
-            <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
-            <button class="btn small" type="button" id="bAsrOne">This cue only</button>
+            <button class="btn small primary" type="button" id="bAsr">Transcribe the selected cues</button>
             <button class="link-btn" type="button" id="bAsrStop" hidden>Stop</button>
           </div>
           <progress id="asrBar" max="1" value="0" hidden></progress>
@@ -737,7 +744,12 @@ body.sheet-open { overflow: hidden; }
         </div>
         <div class="group-box">
           <h3>Every line</h3>
-          <p class="hint">Edit any cue’s character and line here; changes save as you type.</p>
+          <p class="hint">Edit any cue’s character and line here; changes save as you type. The boxes choose which cues to transcribe.</p>
+          <div class="st-tools">
+            <span class="count" id="stCount" aria-live="polite"></span>
+            <button class="link-btn" type="button" id="bPickAll">Select all</button>
+            <button class="link-btn" type="button" id="bPickNone">Unselect all</button>
+          </div>
           <div class="script-table" id="scriptTable"></div>
         </div>
       </section>
@@ -1282,7 +1294,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const pad3 = (n) => String(n).padStart(3, '0');
   // Shown in Settings and in the transcription log, to tell which copy of the app is running.
-  const APP_VERSION = '2026.11.02-6';
+  const APP_VERSION = '2026.11.02-8';
   const fmtSec = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)} s`);
   const fmtT = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(2).padStart(5, '0')}` : `${s.toFixed(2)} s`);
   const fmtBytes = (b) => (b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' KB');
@@ -1291,7 +1303,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
-    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'standard',
+    denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}', asrLang: 'en', asrSize: 'auto',
     keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
@@ -3161,7 +3173,6 @@ registerProcessor('dub-tap', DubTap);
     $('cueOf').textContent = ' / ' + n;
     $('cueName').textContent = key || '';
     $('cueName').title = key || '';
-    $('bAsrOne').textContent = n ? `Only cue ${pad3(S.idx + 1)}` : 'This cue only'; // the script view can't see which cue is open
     const pill = $('cueState');
     pill.textContent = has ? 'Dubbed' : 'No take yet';
     pill.classList.toggle('done', has);
@@ -3585,11 +3596,11 @@ registerProcessor('dub-tap', DubTap);
         : 'No lines yet. Import a script, paste lines, transcribe the originals, or type each cue’s line in the list below.';
     $('rhythmo').checked = S.settings.rhythmo;
     renderAsrLang();
-    $('asrSize').value = S.settings.asrSize === 'light' ? 'light' : 'standard';
+    $('asrSize').value = S.settings.asrSize;
+    renderAsrModelHint();
     $('charFolders').checked = S.settings.charFolders;
-    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines', 'asrLang', 'asrSize']) $(id).disabled = !n || !!A.asr;
-    const left = asrLeft().length;
-    $('bAsr').textContent = !n || left === n ? 'Transcribe all cues' : left ? `Transcribe the other ${left} cue${left === 1 ? '' : 's'}` : 'Transcribe all cues again';
+    for (const id of ['bPasteLines', 'asrLang', 'asrSize']) $(id).disabled = !n || !!A.asr;
+    renderPicks();
   }
   const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
   function refreshCharFilter() {
@@ -3696,9 +3707,37 @@ registerProcessor('dub-tap', DubTap);
   // This is the library's self-contained build. Its "web" build leaves two of its own imports for
   // a bundler to fill in, so no browser can load it as it is.
   const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
-  // Standard: the larger model first; a device that can't load it gets the smaller one, in a fresh
-  // worker. Light: only the smaller one, for devices short of memory.
-  const asrModels = () => (S.settings.asrSize === 'light' ? ['Xenova/whisper-tiny'] : ['Xenova/whisper-base', 'Xenova/whisper-tiny']);
+  // Speech models. Whisper pads every clip to 30 seconds, so even a 3-second cue takes its full working
+  // memory, and Whisper Base takes more than an iPhone gives a web app (it closed the page on the first
+  // cue). Moonshine, English only, works on the clip's own length, so short cues take little memory,
+  // and it's about as accurate as Whisper Base.
+  const ASR_MODEL_INFO = {
+    'moonshine-base': { id: 'onnx-community/moonshine-base-ONNX', name: 'Moonshine Base' },
+    'whisper-base': { id: 'Xenova/whisper-base', name: 'Whisper Base' },
+    'whisper-tiny': { id: 'Xenova/whisper-tiny', name: 'Whisper Tiny' },
+  };
+  // The models to try, in order: if one won't load, or runs out of memory, the next takes over.
+  function asrChain(lang) {
+    const pick = S.settings.asrSize;
+    if (pick === 'whisper-tiny') return ['whisper-tiny'];
+    if (pick === 'whisper-base') return ['whisper-base', 'whisper-tiny'];
+    const whisper = appleMobile() ? ['whisper-tiny'] : ['whisper-base', 'whisper-tiny'];
+    return (lang || asrLang()) === 'en' ? ['moonshine-base', ...whisper] : whisper;
+  }
+  // Whisper can loop on a short clip, repeating a phrase until it hits its limit; the clip's length
+  // sets a fair limit instead (speech runs at about 3 to 5 tokens a second).
+  const asrMaxTokens = (sec) => Math.min(440, Math.ceil(sec * 8) + 16);
+  function renderAsrModelHint() {
+    const lang = asrLang(), pick = S.settings.asrSize, chain = asrChain(lang), dev = /iPad/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : 'iPhone';
+    let t = '';
+    if (pick === 'auto') {
+      t = chain[0] === 'moonshine-base'
+        ? 'For English this uses Moonshine Base: about as accurate as Whisper Base, and short cues need little memory.'
+        : appleMobile() ? `For ${ASR_LANGS[lang]} on this ${dev} this uses Whisper Tiny. Whisper Base needs more memory than an ${dev} gives a web app.` : `For ${ASR_LANGS[lang]} this uses Whisper Base.`;
+    } else if (pick === 'whisper-base' && appleMobile()) t = `Whisper Base may close the app on an ${dev}: it needs more memory than iOS gives a web app.`;
+    $('asrModelHint').textContent = t;
+    $('asrModelHint').hidden = !t;
+  }
   // The languages these Whisper models know, by the codes they take. The library can't tell which
   // one is spoken (it would assume English), so the person picks it.
   const ASR_LANGS = {
@@ -3887,7 +3926,13 @@ self.onmessage = async (e) => {
   const m = e.data;
   try { loading = loading || load(); await loading; } catch (err) { report(err.stage || 'model', m.id, err); return; }
   try {
-    const opts = { chunk_length_s: 30, stride_length_s: 5, language: m.language || 'en', task: 'transcribe' };
+    const max_new_tokens = m.maxTokens || 440;
+    if (/moonshine/i.test(MODEL)) { // English only, no timing; the whole clip at its own length
+      const out = await asr(m.audio, { max_new_tokens });
+      self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: [], segments: true, heap: heap ? heap.buffer.byteLength : 0 });
+      return;
+    }
+    const opts = { chunk_length_s: 30, stride_length_s: 5, language: m.language || 'en', task: 'transcribe', max_new_tokens };
     let out = null;
     if (word) {
       try { out = await asr(m.audio, Object.assign({ return_timestamps: 'word' }, opts)); } catch (_) { word = false; }
@@ -3897,23 +3942,24 @@ self.onmessage = async (e) => {
     self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments, heap: heap ? heap.buffer.byteLength : 0 });
   } catch (err) { report('run', m.id, err); }
 };`;
-  // Memory the speech runtime takes stays taken until its worker ends, and it creeps up from cue to cue.
-  // On an iPhone, a long run grew until iOS closed the page, so a fresh worker takes over every few
-  // cues, or sooner if the memory grows large. The model comes back from the browser's cache.
-  const ASR_PER_WORKER = appleMobile() ? 3 : 10, ASR_HEAP_LIMIT = 600 * 1048576;
-  let asrW = null, asrSeq = 0, asrModel = 0, asrUses = 0, asrWarm = false, asrWorkers = 0;
+  // Memory the speech runtime takes stays taken until its worker ends. On an iPhone, Whisper Tiny's grew
+  // from 202 MB to 504 MB on its first cue and then held there, so a fresh worker takes over now and
+  // then as a precaution (each restart costs a few seconds), or at once if the memory grows large.
+  const ASR_PER_WORKER = appleMobile() ? 25 : 60, ASR_HEAP_LIMIT = 600 * 1048576;
+  let asrW = null, asrWModel = null, asrSeq = 0, asrUses = 0, asrWarm = false, asrWorkers = 0;
   const asrWait = new Map();
   const asrErr = (message, stage) => Object.assign(new Error(message), { stage });
   function asrFail(err) { for (const w of asrWait.values()) w.rej(err); asrWait.clear(); }
-  function asrStop() { if (asrW) { try { asrW.terminate(); } catch (_) { /* already gone */ } asrW = null; } }
-  function asrWorker() {
-    if (asrW) return asrW;
-    const model = asrModels()[Math.min(asrModel, asrModels().length - 1)];
-    const src = asrSource(model, appleMobile() ? 16384 : 0);
+  function asrStop() { if (asrW) { try { asrW.terminate(); } catch (_) { /* already gone */ } asrW = null; asrWModel = null; } }
+  function asrWorker(key) {
+    if (asrW && asrWModel === key) return asrW;
+    asrStop();
+    const src = asrSource(ASR_MODEL_INFO[key].id, appleMobile() ? 16384 : 0);
     const w = asrW = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' });
+    asrWModel = key;
     asrUses = 0;
     const no = ++asrWorkers, t0 = performance.now();
-    asrLog(`speech worker ${no} starting: ${model.split('/')[1]}`);
+    asrLog(`speech worker ${no} starting: ${ASR_MODEL_INFO[key].name}`);
     const files = new Map(); // file -> [bytes loaded, bytes in all]
     w.onmessage = (e) => {
       const d = e.data;
@@ -3948,9 +3994,9 @@ self.onmessage = async (e) => {
     };
     return w;
   }
-  function asrRun(audio, language) {
+  function asrRun(audio, language, key, maxTokens) {
     const id = ++asrSeq;
-    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio, language }, [audio.buffer]); });
+    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker(key).postMessage({ type: 'run', id, audio, language, maxTokens }, [audio.buffer]); });
   }
   // What went wrong, in words, with the browser's own message kept for reporting.
   function asrProblem(e) {
@@ -4010,8 +4056,11 @@ self.onmessage = async (e) => {
     const el = $('asrCrash');
     el.hidden = !asrCrash;
     if (!asrCrash) return;
-    el.textContent = `The last transcription didn’t finish: the page ${asrCrash.closed ? 'was closed' : 'stopped'} while ${asrCrash.cue || 'a cue'} was being transcribed${asrCrash.hidden && !asrCrash.closed ? ', with Dub Booth in the background' : ''}. ` +
-      (asrCrash.closed ? 'Carry on with the button above.' : 'On an iPhone this usually means it ran out of memory. Carry on with the button above; if it happens again, choose the light speech model. The log below shows how far it got.');
+    const m = ASR_MODEL_INFO[asrCrash.model];
+    el.textContent = `The last transcription didn’t finish: the page ${asrCrash.closed ? 'was closed' : 'stopped'} while ${asrCrash.cue || 'a cue'} was being transcribed${m ? ` with ${m.name}` : ''}${asrCrash.hidden && !asrCrash.closed ? ', with Dub Booth in the background' : ''}. ` +
+      (asrCrash.closed ? 'Carry on with the button above.'
+        : asrCrash.model === 'whisper-base' ? 'Whisper Base needs more memory than this device gives the app. Choose “Best for this device and language” or Whisper Tiny above, then carry on. The log below shows how far it got.'
+          : 'On an iPhone this usually means it ran out of memory. Carry on with the button above; if it happens again, choose Whisper Tiny. The log below shows how far it got.');
   }
   // When the page opens: did the last run end, or was the page closed under it?
   function checkAsrRun() {
@@ -4060,7 +4109,9 @@ self.onmessage = async (e) => {
     asrWarm = false;
     asrCrash = null;
     renderAsrCrash();
-    asrLog(`— transcribing ${keys.length} cue${keys.length === 1 ? '' : 's'} in ${langName}, ${S.settings.asrSize === 'light' ? 'light' : 'standard'} model · ${deviceLine()} · version ${APP_VERSION}`);
+    const chain = asrChain(lang);
+    let step = 0;
+    asrLog(`— transcribing ${keys.length} cue${keys.length === 1 ? '' : 's'} in ${langName}, ${chain.map((k) => ASR_MODEL_INFO[k].name).join(' then ')} · ${deviceLine()} · version ${APP_VERSION}`);
     wakeLock(); // a long run shouldn't be cut short by the screen locking
     for (const key of keys) {
       if (A.asr.stop) break;
@@ -4070,20 +4121,21 @@ self.onmessage = async (e) => {
       $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}, in ${langName}…`;
       const label = `cue ${pad3(S.keys.indexOf(key) + 1)} (${key})`;
       try {
-        asrMark({ cue: label, at: Date.now(), worker: asrWorkers + (asrW ? 0 : 1), uses: asrW ? asrUses : 0 });
+        asrMark({ cue: label, at: Date.now(), model: chain[step], worker: asrWorkers + (asrW && asrWModel === chain[step] ? 0 : 1), uses: asrW && asrWModel === chain[step] ? asrUses : 0 });
         let src = await asrAudio(key), out;
         asrLog(`${label}: ${src.dur.toFixed(1)} s of audio (${src.sr / 1000} kHz, ${src.ch} ch), decoded audio kept ${MB(origBytes())}`);
         const t0 = performance.now();
         for (;;) {
-          try { out = await asrRun(src.audio, lang); break; } catch (e) {
+          try { out = await asrRun(src.audio, lang, chain[step], asrMaxTokens(src.dur)); break; } catch (e) {
             asrLog(`${label}: ${e.stage || 'error'}: ${e.message}`);
             // A model that won't load, or runs out of memory, makes way for the next one.
             const load = e.stage === 'model' || e.stage === 'worker' || (e.stage === 'run' && /memory|alloc|RangeError/i.test(e.message));
-            if (A.asr.stop || !load || asrModel >= asrModels().length - 1) throw e;
+            if (A.asr.stop || !load || step >= chain.length - 1) throw e;
             asrStop();
-            asrModel++;
+            step++;
             asrWarm = false;
-            $('asrText').textContent = 'Trying a smaller speech model…';
+            asrMark({ cue: label, at: Date.now(), model: chain[step], worker: asrWorkers + 1, uses: 0 });
+            $('asrText').textContent = `Trying ${ASR_MODEL_INFO[chain[step]].name}…`;
             src = await asrAudio(key); // the last copy went to the worker that failed
           }
         }
@@ -4101,6 +4153,8 @@ self.onmessage = async (e) => {
         // A typed or imported line stays; one that only came from an earlier transcription is replaced.
         if (inf.asrText && (!inf.line || inf.lineFromAsr || (before && inf.line === before))) { inf.line = inf.asrText; inf.lineFromAsr = true; }
         saveInfo(); flushInfo(); // saved at once: if the page is closed mid-run, finished cues stay done
+        asrPick.delete(key);
+        renderPicks();
         done++;
         $('asrBar').value = done / keys.length;
         if (key === CUR.key) afterScriptChange();
@@ -4113,7 +4167,6 @@ self.onmessage = async (e) => {
     if (wl && !A.stream) { wl.release().catch(() => {}); wl = null; }
     // A loaded model holds a few hundred MB; let it go so recording keeps the memory it needs.
     asrStop();
-    if (failed && asrModel === asrModels().length - 1 && failed.stage !== 'run') asrModel = 0; // nothing loaded: start over next time
     $('bAsrStop').hidden = true;
     $('asrBar').hidden = true;
     afterScriptChange();
@@ -4905,10 +4958,14 @@ self.onmessage = async (e) => {
     S.keys.forEach((k, i) => {
       const inf = S.info.get(k) || {}, row = document.createElement('div');
       row.className = 'st-row'; row.dataset.key = k;
-      const nm = document.createElement('div'); nm.className = 'st-name';
+      const nm = document.createElement('label'); nm.className = 'st-name';
+      const pick = document.createElement('input');
+      pick.type = 'checkbox'; pick.className = 'st-check';
+      pick.setAttribute('aria-label', `Transcribe cue ${i + 1}, ${k}`);
       const no = document.createElement('b'); no.textContent = pad3(i + 1);
       const fn = document.createElement('span'); fn.textContent = k;
-      nm.append(no, fn);
+      const done = document.createElement('span'); done.className = 'st-done'; done.textContent = 'Transcribed';
+      nm.append(pick, no, fn, done);
       const line = document.createElement('input');
       line.type = 'text'; line.className = 'st-line'; line.dir = 'auto'; line.value = inf.line || ''; line.placeholder = 'Line to say';
       line.setAttribute('aria-label', `Line for cue ${i + 1}, ${k}`);
@@ -4920,6 +4977,33 @@ self.onmessage = async (e) => {
       frag.append(row);
     });
     box.append(frag);
+    renderPicks();
+  }
+
+  // ---------- which cues to transcribe ----------
+  // Chosen with the boxes in the script list. To start with, the cues not yet transcribed in the chosen
+  // language are selected; each cue unselects itself once it's done, so after a stop (or the page
+  // closing) the selection shows what's left.
+  let asrPick = new Set(), pickSig = '';
+  function picks() {
+    const sig = `${S.keys.length}|${S.keys[0]}|${S.keys[S.keys.length - 1]}`;
+    if (sig !== pickSig) { pickSig = sig; asrPick = new Set(asrLeft()); }
+    return asrPick;
+  }
+  function renderPicks() {
+    const p = picks(), n = p.size, all = S.keys.length, busy = !!A.asr, lang = asrLang();
+    $('stCount').textContent = all ? `${n} of ${all} selected` : '';
+    $('bAsr').textContent = n ? `Transcribe ${n} selected cue${n === 1 ? '' : 's'}` : 'Transcribe the selected cues';
+    $('bAsr').disabled = busy || !n;
+    $('bPickAll').disabled = busy || n === all;
+    $('bPickNone').disabled = busy || !n;
+    for (const row of $('scriptTable').children) {
+      const c = row.querySelector('.st-check');
+      if (!c) continue;
+      c.checked = p.has(row.dataset.key);
+      c.disabled = busy;
+      row.querySelector('.st-done').hidden = !asrDone(row.dataset.key, lang);
+    }
   }
 
   // ---------- remote control ----------
@@ -5032,7 +5116,7 @@ self.onmessage = async (e) => {
   }
   function bindUI() {
     buildLangs();
-    $('asrSize').addEventListener('change', (e) => { S.settings.asrSize = e.target.value; asrModel = 0; saveMeta(true); });
+    $('asrSize').addEventListener('change', (e) => { S.settings.asrSize = e.target.value; saveMeta(true); renderAsrModelHint(); });
     $('asrLogBox').addEventListener('toggle', renderAsrLog);
     $('bAsrLogCopy').addEventListener('click', copyAsrLog);
     $('bAsrLogClear').addEventListener('click', () => { lsSet(LOG_KEY, null); asrCrash = null; renderAsrCrash(); renderAsrLog(); });
@@ -5144,8 +5228,15 @@ self.onmessage = async (e) => {
     });
     $('rhythmo').addEventListener('change', (e) => { S.settings.rhythmo = e.target.checked; saveMeta(true); renderLine(); drawLanes(); });
     $('charFolders').addEventListener('change', (e) => { S.settings.charFolders = e.target.checked; saveMeta(true); });
-    $('bAsr').addEventListener('click', () => { const left = asrLeft(); transcribe(left.length ? left : S.keys.slice()); });
-    $('bAsrOne').addEventListener('click', () => { if (CUR.key) transcribe([CUR.key]); });
+    $('bAsr').addEventListener('click', () => { const p = picks(); transcribe(S.keys.filter((k) => p.has(k))); });
+    $('bPickAll').addEventListener('click', () => { picks(); asrPick = new Set(S.keys); renderPicks(); });
+    $('bPickNone').addEventListener('click', () => { picks().clear(); renderPicks(); });
+    $('scriptTable').addEventListener('change', (e) => {
+      if (!e.target.classList.contains('st-check')) return;
+      const key = e.target.closest('.st-row').dataset.key;
+      if (e.target.checked) picks().add(key); else picks().delete(key);
+      renderPicks();
+    });
     $('bAsrStop').addEventListener('click', stopTranscribe);
     $('bStOk').addEventListener('click', () => markCue('ok'));
     $('bCueMenu').addEventListener('click', () => openSheet());
@@ -5156,7 +5247,7 @@ self.onmessage = async (e) => {
     $('cueSearch').addEventListener('input', () => updateList());
     $('scriptTable').addEventListener('input', (e) => {
       const el = e.target, key = el.closest('.st-row') && el.closest('.st-row').dataset.key;
-      if (!key) return;
+      if (!key || el.classList.contains('st-check')) return; // boxes are handled on change
       const inf = cueInfo(key);
       if (el.classList.contains('st-line')) { inf.line = el.value.trim(); inf.lineFromAsr = !!inf.asrText && inf.line === inf.asrText; }
       else inf.char = el.value.trim();
@@ -5335,6 +5426,8 @@ self.onmessage = async (e) => {
       if (meta.settings.suffix && !meta.settings.namePat) S.settings.namePat = '{name}' + meta.settings.suffix;
       S.settings.keys = { ...DEFAULTS.keys, ...(meta.settings.keys || {}) };
       for (const k of ['autoStop', 'tail', 'kbps', 'normalize', 'offsetMs', 'suffix']) delete S.settings[k]; // options from older versions
+      S.settings.asrSize = { standard: 'auto', light: 'whisper-tiny' }[S.settings.asrSize] || S.settings.asrSize;
+      if (!['auto', 'whisper-base', 'whisper-tiny'].includes(S.settings.asrSize)) S.settings.asrSize = 'auto';
     }
     const inf = await store.get('meta', 'info');
     if (inf && typeof inf === 'object') for (const k of Object.keys(inf)) if (inf[k] && typeof inf[k] === 'object') S.info.set(k, inf[k]);
