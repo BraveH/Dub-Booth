@@ -7,6 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Dub Booth">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#edf0f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0f14" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Dub Booth</title>
 <!--
   Dub Booth: record a dub for each original clip while it plays in your headphones,
@@ -270,6 +275,10 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .tag-btn[disabled] { opacity: 0.45; cursor: default; }
 .tag-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
 .note-row, .line-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.key-rows { display: grid; gap: 6px; }
+.key-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; font-size: 14px; min-height: 36px; }
+.key-row kbd { font: 600 12px/1 var(--font-mono); padding: 5px 7px; border-radius: 6px; background: var(--well); border: 1px solid var(--line); white-space: nowrap; }
+.key-row .btn { min-width: 64px; }
 fieldset.group { margin: 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 10px; min-width: 0; }
 fieldset.group legend { padding: 0 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
 /* the line to say, and the rhythmo band */
@@ -359,6 +368,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
       <button class="btn" type="button" id="bSample">Try with 3 sample clips</button>
     </div>
     <p class="note" id="secureNote" hidden></p>
+    <p class="hint">Tip: add Dub Booth to your Home Screen to use it like an app. It works offline after the first visit.</p>
   </section>
 
   <div id="work" hidden>
@@ -602,6 +612,12 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
             <option value="phrase">Each phrase on its own</option>
           </select>
         </label>
+        <div class="field">
+          <span>Remote control</span>
+          <p class="hint">Bluetooth keyboards, foot pedals and page turners act like a keyboard. Choose a key for each action; the usual keys keep working too.</p>
+          <div class="key-rows" id="keyRows"></div>
+          <label class="check"><input type="checkbox" id="mediaKeys"> Use headphone and media buttons: play/pause records or stops, next and previous change cue</label>
+        </div>
         <div class="field">
           <span>Sync calibration</span>
           <p class="hint" id="latText"></p>
@@ -995,6 +1011,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
     preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
     denoise: false, toneMatch: false, roomTone: false, alternates: false, cueSheet: false, namePat: '{name}',
+    keys: { rec: ['MediaPlayPause'], dub: [], orig: [], next: ['MediaTrackNext'], prev: ['MediaTrackPrevious'] }, mediaKeys: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', trim: false,
   };
 
@@ -2261,6 +2278,7 @@ registerProcessor('dub-tap', DubTap);
   // has a time limit, and after 8 s another tap is let through anyway, so the button can't lock up.
   let recBusy = 0;
   async function onRec() {
+    if (S.settings.mediaKeys && mediaEl && mediaEl.paused) mediaEl.play().catch(() => {});
     if (A.rec) { stopRecording(); return; }
     if (!S.keys.length) return;
     // Between two loop passes, a tap ends the loop.
@@ -2836,6 +2854,7 @@ registerProcessor('dub-tap', DubTap);
     if (v !== S.view) return;
     setCueView(cue);
     renderStatus();
+    updateMediaInfo();
     const next = S.keys[S.idx + 1];
     if (next && !S.orig.has(next)) setTimeout(() => getOriginal(next).catch(() => {}), 300);
   }
@@ -4184,6 +4203,72 @@ self.onmessage = async (e) => {
     try { if ('wakeLock' in navigator && document.visibilityState === 'visible' && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } } catch (_) { wl = null; }
   }
 
+  // ---------- remote control ----------
+  // Pedals, page turners and Bluetooth keyboards send keys; each action can have its own key.
+  const KEY_ACTIONS = [['rec', 'Record or stop'], ['dub', 'Play my dub'], ['orig', 'Play the original'], ['next', 'Next cue'], ['prev', 'Previous cue']];
+  function keyName(code) {
+    return String(code).replace(/^Key/, '').replace(/^Digit/, '').replace(/^Arrow(.*)$/, '$1 arrow').replace(/^Media/, '').replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
+  let keyWait = null;
+  function renderKeys() {
+    const box = $('keyRows'), map = S.settings.keys || {};
+    box.textContent = '';
+    for (const [act, label] of KEY_ACTIONS) {
+      const row = document.createElement('div'), name = document.createElement('span'), keys = document.createElement('span');
+      row.className = 'key-row';
+      name.textContent = label;
+      const list = (map[act] || []).filter((c) => !/^Media/.test(c));
+      if (list.length) for (const c of list) { const k = document.createElement('kbd'); k.textContent = keyName(c); keys.append(k); }
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn small'; b.dataset.act = act;
+      b.textContent = keyWait === act ? 'Press a key…' : list.length ? 'Change' : 'Set key';
+      b.setAttribute('aria-label', `${keyWait === act ? 'Waiting for a key' : 'Choose a key'} for ${label.toLowerCase()}`);
+      row.append(name, keys, b);
+      box.append(row);
+    }
+  }
+  function remoteAction(code) {
+    const map = S.settings.keys || {};
+    for (const [act] of KEY_ACTIONS) if ((map[act] || []).includes(code)) return act;
+    return null;
+  }
+  function runAction(act) {
+    if (act === 'rec') onRec();
+    else if (act === 'dub') play('take');
+    else if (act === 'orig') play('orig');
+    else if (act === 'next') goTo(S.idx + 1);
+    else if (act === 'prev') goTo(S.idx - 1);
+  }
+  // Headphone and media buttons only reach a page that is playing media, so while this is on,
+  // Dub Booth plays a silent loop and listens for play, pause, next and previous.
+  let mediaEl = null;
+  function setupMediaKeys() {
+    const ms = navigator.mediaSession;
+    const handle = (a, fn) => { try { ms.setActionHandler(a, fn); } catch (_) { /* not supported */ } };
+    if (!S.settings.mediaKeys || !ms) {
+      if (mediaEl) { mediaEl.pause(); mediaEl = null; }
+      if (ms) for (const a of ['play', 'pause', 'nexttrack', 'previoustrack']) handle(a, null);
+      return;
+    }
+    if (!mediaEl) {
+      mediaEl = new Audio(URL.createObjectURL(new Blob([wavBytes(new Int16Array(8000), 8000)], { type: 'audio/wav' })));
+      mediaEl.loop = true;
+    }
+    if (mediaEl.paused) mediaEl.play().catch(() => {}); // starts on the next tap if this one didn't count
+    handle('play', () => runAction('rec'));
+    handle('pause', () => runAction('rec'));
+    handle('nexttrack', () => runAction('next'));
+    handle('previoustrack', () => runAction('prev'));
+    updateMediaInfo();
+  }
+  function updateMediaInfo() {
+    if (!mediaEl || !navigator.mediaSession) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: CUR.key || 'Dub Booth', artist: 'Dub Booth' });
+      navigator.mediaSession.playbackState = 'playing';
+    } catch (_) { /* not supported */ }
+  }
+
   // ---------- settings UI ----------
   function applySettingsToUI() {
     const s = S.settings;
@@ -4210,6 +4295,8 @@ self.onmessage = async (e) => {
     $('roomTone').checked = s.roomTone;
     $('alternates').checked = s.alternates;
     $('cueSheet').checked = s.cueSheet;
+    $('mediaKeys').checked = s.mediaKeys;
+    renderKeys();
     $('trim').checked = s.trim;
     renderFormatFields();
   }
@@ -4364,6 +4451,31 @@ self.onmessage = async (e) => {
     for (const id of ['denoise', 'toneMatch', 'roomTone']) bindCheck(id, id, () => { CUR.compBuf = null; });
     bindCheck('alternates', 'alternates');
     bindCheck('cueSheet', 'cueSheet');
+    bindCheck('mediaKeys', 'mediaKeys', setupMediaKeys);
+    $('keyRows').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      keyWait = keyWait === b.dataset.act ? null : b.dataset.act;
+      renderKeys();
+      const again = $('keyRows').querySelector(`button[data-act="${b.dataset.act}"]`);
+      if (again) again.focus();
+    });
+    // While waiting for a key, the next key press is taken for that action (Esc cancels).
+    document.addEventListener('keydown', (e) => {
+      if (!keyWait) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.key !== 'Escape') {
+        if (!S.settings.keys) S.settings.keys = { ...DEFAULTS.keys };
+        const media = (S.settings.keys[keyWait] || []).filter((c) => /^Media/.test(c));
+        S.settings.keys[keyWait] = [...media, e.code];
+        for (const [act] of KEY_ACTIONS) if (act !== keyWait) S.settings.keys[act] = (S.settings.keys[act] || []).filter((c) => c !== e.code);
+        saveMeta(true);
+        toast(`${KEY_ACTIONS.find((a) => a[0] === keyWait)[1]}: ${keyName(e.code)}.`);
+      }
+      keyWait = null;
+      renderKeys();
+    }, true);
     $('bBackup').addEventListener('click', saveBackup);
     $('bBakShare').addEventListener('click', async () => {
       if (!lastBak) return;
@@ -4389,6 +4501,8 @@ self.onmessage = async (e) => {
       if (mod && (k === 'z' || k === 'Z')) { e.preventDefault(); undoEdit(e.shiftKey); return; }
       if (mod && (k === 'y' || k === 'Y')) { e.preventDefault(); undoEdit(true); return; }
       if (mod || e.altKey) return;
+      const act = remoteAction(e.code);
+      if (act) { e.preventDefault(); runAction(act); return; }
       if ((k === ' ' || k === 'Enter') && tgt && tgt.closest && tgt.closest('button, a, label')) return;
       if (k === ' ' || k === 'r' || k === 'R') { e.preventDefault(); onRec(); }
       else if (k === 'o' || k === 'O') play('orig');
@@ -4439,6 +4553,7 @@ self.onmessage = async (e) => {
       S.settings = { ...DEFAULTS, ...meta.settings };
       if (typeof meta.settings.offsetMs === 'number' && meta.settings.offsetMs) S.settings.legacyShiftMs = -meta.settings.offsetMs;
       if (meta.settings.suffix && !meta.settings.namePat) S.settings.namePat = '{name}' + meta.settings.suffix;
+      S.settings.keys = { ...DEFAULTS.keys, ...(meta.settings.keys || {}) };
       for (const k of ['autoStop', 'tail', 'kbps', 'normalize', 'offsetMs', 'suffix']) delete S.settings[k]; // options from older versions
     }
     const inf = await store.get('meta', 'info');
@@ -4459,6 +4574,17 @@ self.onmessage = async (e) => {
     }
     renderStorage();
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (_) { /* ignore */ }
+    setupMediaKeys();
+    // Offline support: works when the page is served over https (or from localhost) with sw.js beside it.
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (e.data && e.data.type === 'update-ready' && !A.rec) toast('A new version of Dub Booth is ready.', { action: 'Reload', onAction: () => { flushMeta(); flushSaves(); flushInfo(); location.reload(); } });
+      });
+      navigator.serviceWorker.register('sw.js').catch((e) => console.warn('offline support', e));
+      if (navigator.serviceWorker.startMessages) navigator.serviceWorker.startMessages();
+      // The check for a newer copy may finish before this page was listening, so ask once it is.
+      setTimeout(() => { const sw = navigator.serviceWorker.controller; if (sw) sw.postMessage({ type: 'check' }); }, 1500);
+    }
     window.__dubBooth = {
       A, S, CUR, getCue, renderComp, denoise, toneEq, bandLevels, fft, processDub, cutRange, addClip, splitClipAt, takeSpan, clipStart, clipEnd, tauOf, undoEdit, bestShift, stretchAudio, parseTable, applyScript, spreadWords, speechSpans, wordsOf, probeMp3, buildInfoFrame, crc16, resample,
       get lastExport() { return lastExport; },
