@@ -258,10 +258,10 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .ok .ci-dot { background: var(--ok); border-color: var(--ok); border-radius: 3px; }
 .list-filter select { min-height: 36px; width: auto; font-size: 13px; padding: 0 8px; }
 /* cue marks and notes */
-.cue-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.cue-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: -4px; }
 .tag-btn {
-  min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted);
-  font: 600 13px/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; touch-action: manipulation;
+  min-height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--muted);
+  font: 600 12.5px/1 var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; touch-action: manipulation;
 }
 .tag-btn[aria-pressed="true"].redo { background: var(--rec-soft); border-color: var(--rec); color: var(--rec); }
 .tag-btn[aria-pressed="true"].ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
@@ -269,7 +269,13 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .tag-btn.has-note::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
 .tag-btn[disabled] { opacity: 0.45; cursor: default; }
 .tag-btn:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
-.note-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.note-row, .line-row { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+/* the line to say, and the rhythmo band */
+.line-box { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--well); }
+.line-char { font: 700 11px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--guide); }
+.line-text { font: 600 clamp(19px, 4.6vw, 24px)/1.35 var(--font-display); text-wrap: balance; overflow-wrap: anywhere; }
+.rhythmo { display: block; width: 100%; height: 44px; border-radius: 12px; background: var(--well); margin-bottom: -8px; }
+.ci-char { font: 600 11px/1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; color: var(--guide); margin-left: 6px; }
 @media (min-width: 640px) { .note-row { grid-template-columns: 1fr 1fr; } }
 /* streamer: sweeps across the lanes into each take */
 .streamer { position: absolute; top: 0; bottom: 24px; left: 0; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--rec); box-shadow: 0 0 14px var(--rec); z-index: 3; pointer-events: none; will-change: transform; }
@@ -282,6 +288,8 @@ body.is-rec .tally { background: var(--rec); box-shadow: 0 0 0 4px var(--rec-sof
 .field > span { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
 .hint { color: var(--muted); font-size: 13px; }
 select, input[type="text"] { min-height: 44px; width: 100%; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+textarea { width: 100%; min-height: 64px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); font: inherit; color: inherit; resize: vertical; }
+textarea:focus-visible { outline: 3px solid var(--guide); outline-offset: 2px; }
 input[type="range"] { width: 100%; accent-color: var(--ink); }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 14px; }
 .row select { width: auto; }
@@ -363,12 +371,23 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <button class="tag-btn redo" type="button" id="bStRedo" aria-pressed="false">Needs redo</button>
           <button class="tag-btn ok" type="button" id="bStOk" aria-pressed="false">Approved</button>
           <button class="tag-btn" type="button" id="bNoteT" aria-expanded="false" aria-controls="noteRow">Notes</button>
+          <button class="tag-btn" type="button" id="bLineT" aria-expanded="false" aria-controls="lineRow">Line</button>
+        </div>
+        <div class="line-row" id="lineRow" hidden>
+          <label class="field"><span>Character</span><input type="text" id="cueChar" list="charList" autocomplete="off" placeholder="Who says this line"></label>
+          <label class="field"><span>Line to say</span><textarea id="cueLine" rows="2" placeholder="What to say in this cue"></textarea></label>
+          <datalist id="charList"></datalist>
         </div>
         <div class="note-row" id="noteRow" hidden>
           <label class="field"><span>Note for this cue</span><input type="text" id="cueNote" autocomplete="off" placeholder="For example: breathe before the last word"></label>
           <label class="field" id="takeNoteWrap" hidden><span id="takeNoteLbl">Note for this take</span><input type="text" id="takeNote" autocomplete="off" placeholder="For example: rushed ending"></label>
         </div>
 
+        <div class="line-box" id="lineBox" hidden>
+          <span class="line-char" id="lineChar" hidden></span>
+          <p class="line-text" id="lineText"></p>
+        </div>
+        <canvas class="rhythmo" id="cvRhythmo" aria-label="Rhythmo band: the words of the line scroll past the red line as they should be spoken" hidden></canvas>
         <div class="lanes" id="lanes">
           <div class="lane" data-lane="orig">
             <span class="lane-lbl"><i class="sw guide"></i>Original <b id="durGuide"></b></span>
@@ -463,6 +482,27 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
     </div>
 
     <div class="stack">
+      <section class="panel" id="script" aria-label="Script and cast">
+        <h2>Script and cast</h2>
+        <p class="muted" id="scriptSummary"></p>
+        <label class="btn" for="pickScript">Import a script</label>
+        <input class="file-input" type="file" id="pickScript" accept=".csv,.tsv,.txt,text/csv,text/plain,text/tab-separated-values">
+        <p class="hint">A CSV or tab-separated file with columns for file name, line, character and note. A first row with column names is fine. A plain text file is read as one line per cue, in cue order.</p>
+        <label class="field"><span>Or paste lines, one per cue, in cue order</span><textarea id="pasteLines" rows="3" placeholder="First cue’s line&#10;Second cue’s line"></textarea></label>
+        <button class="btn" type="button" id="bPasteLines">Use these lines</button>
+        <label class="check"><input type="checkbox" id="rhythmo"> Show the rhythmo band: the line’s words scroll past a red mark as they should be spoken</label>
+        <hr class="divider">
+        <div class="field">
+          <span>Transcribe the originals</span>
+          <p class="hint" id="asrText">Speech recognition runs on this device and writes down each original’s words with their timing, for cues that have no line yet. The first time, it downloads a model of about 80 MB.</p>
+          <div class="row">
+            <button class="btn small" type="button" id="bAsr">Transcribe all cues</button>
+            <button class="btn small" type="button" id="bAsrOne">This cue only</button>
+            <button class="link-btn" type="button" id="bAsrStop" hidden>Stop</button>
+          </div>
+          <progress id="asrBar" max="1" value="0" hidden></progress>
+        </div>
+      </section>
       <section class="panel" id="export" aria-label="Export">
         <h2>Export</h2>
         <p class="muted" id="expSummary"></p>
@@ -509,6 +549,7 @@ progress { width: 100%; height: 8px; accent-color: var(--ok); }
           <input type="text" id="suffix" placeholder="Nothing, keep the same names" autocomplete="off" autocapitalize="off" spellcheck="false">
         </label>
         <label class="check"><input type="checkbox" id="trim"> Trim silence from the start and end of each take</label>
+        <label class="check"><input type="checkbox" id="charFolders"> Put each character’s files in a folder named after them</label>
         <button class="btn primary" type="button" id="bExport">Build a zip of all takes</button>
         <div class="exp-progress" id="expProg" hidden>
           <progress id="expBar" max="1" value="0"></progress>
@@ -929,7 +970,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   const DEFAULTS = {
     mode: 'over', countIn: true, autoPlay: 'off', echo: false, legacyShiftMs: 0,
-    preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null,
+    preRoll: 2, punchStop: true, duck: 'full', loop: false, streamer: true, alignMode: 'clip', latencyMs: null, rhythmo: true, charFolders: false,
     fmt: 'match', cSr: 16000, cKbps: 40, cCh: 1, cEnc: 'Lavf58.76.100', vol: 'match', suffix: '', trim: false,
   };
 
@@ -951,7 +992,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const g = (n) => cs.getPropertyValue(n).trim();
     TOK = {
       guide: g('--guide'), take: g('--take'), takeSoft: g('--take-soft'), rec: g('--rec'), ink: g('--ink'),
-      muted: g('--muted'), line: g('--line'), mono: g('--font-mono') || 'monospace',
+      muted: g('--muted'), line: g('--line'), mono: g('--font-mono') || 'monospace', display: g('--font-display') || 'sans-serif',
     };
   }
 
@@ -1025,8 +1066,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   function writeMeta() { metaTimer = 0; store.put('meta', 'session', { keys: S.keys, idx: S.idx, settings: S.settings, dubbed: [...S.takes] }); }
   function saveMeta(now) { clearTimeout(metaTimer); if (now) writeMeta(); else metaTimer = setTimeout(writeMeta, 250); }
   function flushMeta() { if (metaTimer) { clearTimeout(metaTimer); writeMeta(); } }
-  // Marks and notes, kept apart from the takes so undo never touches them:
-  // cue key -> { status: 'redo' | 'ok', note, tk: { take id: { star, note } } }
+  // Marks, notes and the script, kept apart from the takes so undo never touches them:
+  // cue key -> { status: 'redo' | 'ok', note, line, char, words: [{ w, s, e }], asrText, lineFromAsr,
+  //              tk: { take id: { star, note } } }
   function cueInfo(key) { let i = S.info.get(key); if (!i) { i = {}; S.info.set(key, i); } return i; }
   function takeInfo(key, id) { const i = cueInfo(key); if (!i.tk) i.tk = {}; return i.tk[id] || (i.tk[id] = {}); }
   const peekTake = (key, id) => { const i = S.info.get(key); return (i && i.tk && i.tk[id]) || {}; };
@@ -2473,6 +2515,7 @@ registerProcessor('dub-tap', DubTap);
     paintTakeLane(heads.take);
     paintComp(heads.comp);
     paintRuler();
+    paintRhythmo(heads.guide != null ? heads.guide : heads.comp);
     const cue = CUR.cue, empty = !A.rec && !(cue && cue.clips.length);
     $('takeEmpty').hidden = !empty;
     if (empty) $('takeEmpty').textContent = cue && cue.takes.length ? 'Your dub is empty. Drag across a take above to use it.' : 'No take yet';
@@ -2554,7 +2597,7 @@ registerProcessor('dub-tap', DubTap);
     if (!takeById(CUR.cue, CUR.takeSel)) CUR.takeSel = cue && cue.takes.length ? cue.takes[cue.takes.length - 1].id : null;
     if (CUR.clipSel && !(cue && cue.clips.some((c) => c.id === CUR.clipSel))) CUR.clipSel = null;
     if (cue) loadEnvs(CUR.key, cue);
-    renderCueHead(); renderTakes(); renderTags(); renderEdit(); renderButtons(); drawLanes();
+    renderCueHead(); renderTakes(); renderTags(); renderLine(); renderEdit(); renderButtons(); drawLanes();
   }
   function renderTags() {
     const key = CUR.key, i = (key && S.info.get(key)) || {}, t = takeById(CUR.cue, CUR.takeSel);
@@ -2951,6 +2994,289 @@ registerProcessor('dub-tap', DubTap);
     toast(`Take ${t.n} deleted.`, { action: 'Undo', onAction: () => undoEdit(false, key) });
   }
 
+  // ---------- script and cast ----------
+  // Reads CSV or tab-separated text (quotes allowed) into rows of cells.
+  function parseTable(text) {
+    const first = text.split(/\r?\n/, 1)[0] || '';
+    const delim = (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : ',';
+    const rows = [];
+    let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"' && cell === '') q = true;
+      else if (ch === delim) { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); cell = '';
+        if (row.some((c) => c.trim() !== '')) rows.push(row);
+        row = [];
+      } else cell += ch;
+    }
+    row.push(cell);
+    if (row.some((c) => c.trim() !== '')) rows.push(row);
+    return rows.map((r) => r.map((c) => c.trim()));
+  }
+  const baseName = (n) => String(n).split(/[\\/]/).pop().replace(/\.[^.]+$/, '').trim().toLowerCase();
+  // Applies a script to the cues. Rows are matched to cues by file name (with or without its
+  // extension); a plain list of lines, with no file names, goes to the cues in order.
+  function applyScript(text) {
+    const rows = parseTable(text);
+    if (!rows.length) return { n: 0, unmatched: 0 };
+    const byName = new Map();
+    for (const k of S.keys) { byName.set(k.toLowerCase(), k); byName.set(baseName(k), k); }
+    let cols = { file: 0, line: 1, char: 2, note: 3 }, body = rows;
+    const head = rows[0].map((c) => c.toLowerCase());
+    const find = (re) => head.findIndex((c) => re.test(c));
+    if (head.some((c) => /^(file|filename|file name|name|cue|id|line id|line|text|dialog|dialogue|script|translation|character|char|role|speaker|actor|note|notes|direction)$/.test(c))) {
+      cols = { file: find(/^(file|filename|file name|name|cue|id|line id)$/), line: find(/^(line|text|dialog|dialogue|script|translation)$/), char: find(/^(character|char|role|speaker|actor)$/), note: find(/^(note|notes|direction|directions|comment)$/) };
+      body = rows.slice(1);
+    }
+    const single = rows.every((r) => r.length === 1);
+    let n = 0, unmatched = 0;
+    body.forEach((r, i) => {
+      let key;
+      if (single || cols.file < 0) key = S.keys[i];
+      else key = byName.get(String(r[cols.file] || '').toLowerCase()) || byName.get(baseName(r[cols.file] || ''));
+      if (!key) { unmatched++; return; }
+      const inf = cueInfo(key), line = single ? r[0] : cols.line >= 0 ? r[cols.line] : '';
+      if (line) { inf.line = line; inf.lineFromAsr = false; }
+      if (!single && cols.char >= 0 && r[cols.char]) inf.char = r[cols.char];
+      if (!single && cols.note >= 0 && r[cols.note]) inf.note = r[cols.note];
+      n++;
+    });
+    saveInfo();
+    return { n, unmatched };
+  }
+  function afterScriptChange() {
+    rhythmoCache.clear();
+    renderScript(); renderTags(); renderLine(); refreshCharFilter(); updateList(); drawLanes();
+  }
+  function renderScript() {
+    const n = S.keys.length, withLine = S.keys.filter((k) => (S.info.get(k) || {}).line).length;
+    const chars = charNames();
+    $('scriptSummary').textContent = !n ? 'Load your originals first.'
+      : withLine ? `${withLine} of ${n} cues have a line${chars.length ? `, spoken by ${chars.length} character${chars.length === 1 ? '' : 's'}` : ''}.`
+        : 'No lines yet. Import a script, paste lines, transcribe the originals, or add a line to each cue with its Line button.';
+    $('rhythmo').checked = S.settings.rhythmo;
+    $('charFolders').checked = S.settings.charFolders;
+    for (const id of ['bAsr', 'bAsrOne', 'bPasteLines']) $(id).disabled = !n || !!A.asr;
+  }
+  const charNames = () => [...new Set(S.keys.map((k) => ((S.info.get(k) || {}).char || '').trim()).filter(Boolean))].sort(collator.compare);
+  function refreshCharFilter() {
+    const sel = $('listFilter'), cur = sel.value, chars = charNames();
+    for (const o of [...sel.options]) if (o.value.startsWith('char:')) o.remove();
+    for (const c of chars) { const o = document.createElement('option'); o.value = 'char:' + c; o.textContent = `Character: ${c}`; sel.append(o); }
+    sel.value = [...sel.options].some((o) => o.value === cur) ? cur : 'all';
+    const dl = $('charList');
+    dl.textContent = '';
+    for (const c of chars) { const o = document.createElement('option'); o.value = c; dl.append(o); }
+  }
+  function renderLine() {
+    const key = CUR.key, inf = (key && S.info.get(key)) || {};
+    $('lineBox').hidden = !inf.line;
+    $('lineText').textContent = inf.line || '';
+    $('lineChar').textContent = inf.char || '';
+    $('lineChar').hidden = !inf.char;
+    $('bLineT').classList.toggle('has-note', !!(inf.line || inf.char));
+    $('bLineT').disabled = !key;
+    if (document.activeElement !== $('cueLine')) $('cueLine').value = inf.line || '';
+    if (document.activeElement !== $('cueChar')) $('cueChar').value = inf.char || '';
+    CUR.words = rhythmoWords(key);
+    $('cvRhythmo').hidden = !(S.settings.rhythmo && CUR.words.length);
+  }
+  // Words to show on the rhythmo band, with their times. Transcribed words keep their own timing;
+  // a typed or imported line is spread over the original's speech, in proportion to word length.
+  const rhythmoCache = new Map();
+  function rhythmoWords(key) {
+    if (!key) return [];
+    const inf = S.info.get(key) || {}, g = CUR.key === key ? CUR.guide : null;
+    if (inf.words && inf.words.length && (!inf.line || inf.lineFromAsr || inf.line === inf.asrText)) return inf.words;
+    if (!inf.line || !g) return [];
+    const ck = `${key}|${inf.line}|${g.dur}`;
+    if (!rhythmoCache.has(ck)) rhythmoCache.set(ck, spreadWords(inf.line, inf.words && inf.words.length ? inf.words.map((w) => [w.s, w.e]) : speechSpans(g)));
+    return rhythmoCache.get(ck);
+  }
+  // Stretches of the original with speech in them (from its loudness envelope).
+  function speechSpans(g) {
+    const v = g.env.v, thr = Math.max(0.02, g.env.max * 0.12), spans = [];
+    let a = -1;
+    for (let b = 0; b <= v.length; b++) {
+      const on = b < v.length && v[b] >= thr;
+      if (on && a < 0) a = b;
+      if (!on && a >= 0) { spans.push([a / 100, b / 100]); a = -1; }
+    }
+    const merged = [];
+    for (const sp of spans) {
+      const last = merged[merged.length - 1];
+      if (last && sp[0] - last[1] < 0.12) last[1] = sp[1]; else merged.push(sp.slice());
+    }
+    const out = merged.filter((sp) => sp[1] - sp[0] >= 0.06);
+    return out.length ? out : [[0, g.dur]];
+  }
+  function spreadWords(line, spans) {
+    const words = line.split(/\s+/).filter(Boolean);
+    if (!words.length || !spans.length) return [];
+    const weight = words.map((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 1), total = spans.reduce((n, sp) => n + sp[1] - sp[0], 0);
+    const per = total / weight.reduce((a, b) => a + b, 0), out = [];
+    let si = 0, t = spans[0][0];
+    words.forEach((w, i) => {
+      let need = weight[i] * per;
+      const s0 = t;
+      while (need > 1e-9 && si < spans.length) {
+        const room = spans[si][1] - t;
+        if (need <= room + 1e-9) { t += need; need = 0; }
+        else { need -= room; si++; if (si < spans.length) t = spans[si][0]; }
+      }
+      out.push({ w, s: s0, e: Math.max(s0 + 0.04, t) });
+      if (si < spans.length && t >= spans[si][1] - 1e-9 && si + 1 < spans.length) { si++; t = spans[si][0]; }
+    });
+    return out;
+  }
+  // The rhythmo band scrolls: the red mark is "now"; words reach it when they should be spoken.
+  function paintRhythmo(now) {
+    const cv = $('cvRhythmo');
+    if (cv.hidden) return;
+    const dpr = sizeCanvas(cv), c = cv.getContext('2d'), W = cv.width, H = cv.height;
+    c.clearRect(0, 0, W, H);
+    const T = now != null ? now : CUR.sel ? CUR.sel.a : CUR.cursor, span = Math.max(3, Math.min(6, (W / dpr) / 80)), lead = 0.25;
+    const v0 = T - span * lead, x = (t) => ((t - v0) / span) * W;
+    c.textBaseline = 'middle';
+    c.font = `600 ${17 * dpr}px ${TOK.display}`;
+    for (const wd of CUR.words || []) {
+      const xa = x(wd.s), xb = x(wd.e);
+      if (xb < -40 * dpr || xa > W) continue;
+      const past = wd.e <= T, on = T >= wd.s && T < wd.e;
+      c.fillStyle = past ? TOK.muted : on ? TOK.rec : TOK.ink;
+      c.globalAlpha = 0.4;
+      c.fillRect(xa, H - 7 * dpr, Math.max(2 * dpr, xb - xa - 2 * dpr), 3 * dpr);
+      c.globalAlpha = 1;
+      // Each word is squeezed or widened to span its time, as on a dubbing rhythmo band.
+      const tw = Math.max(1, c.measureText(wd.w).width), sc = clamp((xb - xa - 2 * dpr) / tw, 0.55, 2.2);
+      c.save();
+      c.translate(xa, H / 2 - 3 * dpr);
+      c.scale(sc, 1);
+      c.fillText(wd.w, 0, 0);
+      c.restore();
+    }
+    c.fillStyle = TOK.rec;
+    c.fillRect(Math.round(W * lead), 0, Math.max(2, Math.round(2 * dpr)), H);
+  }
+
+  // ---------- transcribing the originals ----------
+  // Speech recognition (Whisper, through Transformers.js) runs in a worker on this device. The
+  // library and the model download the first time; after that the browser keeps them.
+  const ASR_LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.web.min.js';
+  const ASR_SRC = `
+import { pipeline, env } from '${ASR_LIB}';
+env.allowLocalModels = false;
+try { env.backends.onnx.wasm.numThreads = 1; } catch (_) {}
+const MODELS = ['Xenova/whisper-base', 'Xenova/whisper-tiny'];
+let asr = null, loading = null;
+async function load() {
+  let last = null;
+  for (const m of MODELS) {
+    try {
+      asr = await pipeline('automatic-speech-recognition', m, { dtype: 'q8', device: 'wasm', progress_callback: (p) => self.postMessage({ type: 'progress', p: { status: p.status, file: p.file, progress: p.progress } }) });
+      self.postMessage({ type: 'ready', model: m });
+      return;
+    } catch (e) { last = e; }
+  }
+  throw last || new Error('No speech model could load');
+}
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    if (!asr) { loading = loading || load(); await loading; }
+    let out, segments = false;
+    try { out = await asr(m.audio, { return_timestamps: 'word', chunk_length_s: 30, stride_length_s: 5 }); }
+    catch (_) { out = await asr(m.audio, { return_timestamps: true, chunk_length_s: 30, stride_length_s: 5 }); segments = true; }
+    self.postMessage({ type: 'result', id: m.id, text: out.text || '', chunks: (out.chunks || []).map((c) => ({ text: c.text, t: c.timestamp })), segments });
+  } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+};`;
+  let asrW = null, asrSeq = 0;
+  const asrWait = new Map();
+  function asrFail(msg) { for (const w of asrWait.values()) w.rej(new Error(msg)); asrWait.clear(); }
+  function asrWorker() {
+    if (asrW) return asrW;
+    asrW = new Worker(URL.createObjectURL(new Blob([ASR_SRC], { type: 'text/javascript' })), { type: 'module' });
+    asrW.onmessage = (e) => {
+      const d = e.data;
+      if (d.type === 'progress') {
+        const p = d.p || {};
+        if (p.status === 'progress' && typeof p.progress === 'number') $('asrText').textContent = `Downloading the speech model: ${Math.round(p.progress)}%`;
+        return;
+      }
+      if (d.type === 'ready') { $('asrText').textContent = 'Speech model ready. Transcribing…'; return; }
+      const w = asrWait.get(d.id);
+      if (!w) return;
+      asrWait.delete(d.id);
+      if (d.type === 'error') w.rej(new Error(d.message)); else w.res(d);
+    };
+    asrW.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); asrFail((e && e.message) || 'Speech recognition couldn’t start.'); try { asrW.terminate(); } catch (_) { /* ignore */ } asrW = null; };
+    return asrW;
+  }
+  function asrRun(audio) {
+    const id = ++asrSeq;
+    return new Promise((res, rej) => { asrWait.set(id, { res, rej }); asrWorker().postMessage({ type: 'run', id, audio }, [audio.buffer]); });
+  }
+  // Turns recognizer output into timed words; whole sentences are spread over their own time span.
+  function wordsOf(out) {
+    const words = [];
+    for (const ch of out.chunks || []) {
+      const s0 = Array.isArray(ch.t) ? ch.t[0] : null, e0 = Array.isArray(ch.t) ? ch.t[1] : null;
+      if (s0 == null) continue;
+      const end = e0 == null ? s0 + 0.4 : e0;
+      if (!out.segments) { const w = String(ch.text || '').trim(); if (w) words.push({ w, s: s0, e: Math.max(s0 + 0.02, end) }); }
+      else words.push(...spreadWords(String(ch.text || '').trim(), [[s0, Math.max(s0 + 0.1, end)]]));
+    }
+    return words;
+  }
+  async function transcribe(keys) {
+    if (A.asr || !keys.length) return;
+    A.asr = { stop: false };
+    $('bAsrStop').hidden = false;
+    $('asrBar').hidden = false;
+    $('asrBar').value = 0;
+    renderScript();
+    let done = 0, failed = null;
+    for (const key of keys) {
+      if (A.asr.stop) break;
+      $('asrText').textContent = `Transcribing ${done + 1} of ${keys.length}…`;
+      try {
+        const g = await getOriginal(key);
+        const a16 = new Float32Array(resample(monoOf(g.buffer), g.buffer.sampleRate, 16000));
+        const out = await asrRun(a16);
+        if (A.asr.stop) break;
+        const inf = cueInfo(key);
+        inf.words = wordsOf(out);
+        inf.asrText = String(out.text || '').trim();
+        if (!inf.line && inf.asrText) { inf.line = inf.asrText; inf.lineFromAsr = true; }
+        saveInfo();
+        done++;
+        $('asrBar').value = done / keys.length;
+        if (key === CUR.key) afterScriptChange();
+      } catch (e) { failed = e; break; }
+    }
+    const stopped = A.asr.stop;
+    A.asr = null;
+    $('bAsrStop').hidden = true;
+    $('asrBar').hidden = true;
+    afterScriptChange();
+    if (failed) {
+      $('asrText').textContent = 'Speech recognition didn’t work here. It needs an internet connection the first time, to download the model.';
+      toast(`Transcription stopped: ${failed.message || failed}`);
+    } else $('asrText').textContent = `${stopped ? 'Stopped. ' : ''}Transcribed ${done} cue${done === 1 ? '' : 's'}.`;
+  }
+  function stopTranscribe() {
+    if (!A.asr) return;
+    A.asr.stop = true;
+    if (asrW) { asrW.terminate(); asrW = null; }
+    asrFail('stopped');
+  }
+
   // ---------- lining up with the original ----------
   // Compares the loudness pattern of your dub with the original's (10 ms steps, log scale) and moves
   // clips to where they match best. "Each phrase" splits clips at pauses and moves each piece.
@@ -3189,6 +3515,7 @@ registerProcessor('dub-tap', DubTap);
       b.type = 'button'; b.className = 'cue-item'; b.dataset.i = String(i);
       const num = document.createElement('span'); num.className = 'ci-no'; num.textContent = pad3(i + 1);
       const nm = document.createElement('span'); nm.className = 'ci-name'; nm.textContent = k;
+      const ch = document.createElement('span'); ch.className = 'ci-char'; nm.append(ch);
       const dot = document.createElement('span'); dot.className = 'ci-dot'; dot.setAttribute('aria-hidden', 'true');
       b.append(num, nm, dot);
       li.append(b);
@@ -3205,12 +3532,14 @@ registerProcessor('dub-tap', DubTap);
       li.classList.toggle('redo', inf.status === 'redo');
       li.classList.toggle('ok', inf.status === 'ok');
       li.classList.toggle('cur', i === S.idx);
-      const show = f === 'all' || (f === 'left' && !done) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok');
+      const show = f === 'all' || (f === 'left' && !done) || (f === 'redo' && inf.status === 'redo') || (f === 'ok' && inf.status === 'ok') || (f === 'open' && inf.status !== 'ok') || (f.startsWith('char:') && (inf.char || '').trim() === f.slice(5));
+      const chEl = b.querySelector('.ci-char');
+      if (chEl) chEl.textContent = inf.char ? `· ${inf.char}` : '';
       li.hidden = !show && i !== S.idx; // the cue you're on stays in the list
       if (i === S.idx) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
       const mark = inf.status === 'redo' ? ', needs redo' : inf.status === 'ok' ? ', approved' : '';
-      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}, ${done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
-      b.title = inf.note || '';
+      b.setAttribute('aria-label', `Cue ${i + 1}, ${k}${inf.char ? `, ${inf.char}` : ''}, ${done ? 'dubbed' : 'no take yet'}${mark}${inf.note ? `, note: ${inf.note}` : ''}`);
+      b.title = [inf.line, inf.note].filter(Boolean).join(' · ');
     }
   }
   function scrollListToCur() {
@@ -3227,6 +3556,8 @@ registerProcessor('dub-tap', DubTap);
     saveMeta(); updateList(); scrollListToCur(); showCue();
   }
   function enterWork() {
+    refreshCharFilter();
+    renderScript();
     $('welcome').hidden = true;
     $('work').hidden = false;
     $('topActions').hidden = false;
@@ -3329,12 +3660,12 @@ registerProcessor('dub-tap', DubTap);
 
   // ---------- export ----------
   let lastZip = null, lastZipUrl = '';
-  function outName(key, ext, used) {
+  function outName(key, ext, used, dir = '') {
     const suffix = (S.settings.suffix || '').replace(/[\\/:*?"<>|]/g, '');
     const base = key.replace(/\.[^.]+$/, '') + suffix;
     let name = `${base}.${ext}`, n = 2;
-    while (used.has(name)) { name = `${base} (${n}).${ext}`; n++; }
-    used.add(name);
+    while (used.has(dir + '/' + name)) { name = `${base} (${n}).${ext}`; n++; }
+    used.add(dir + '/' + name);
     return name;
   }
   let lastExport = [];
@@ -3357,7 +3688,8 @@ registerProcessor('dub-tap', DubTap);
         const cue = await getCue(keys[i]);
         if (!cue || !cue.clips.length) continue;
         const r = await encodeCue(keys[i], cue, lame);
-        const name = outName(keys[i], r.ext, used);
+        const who = S.settings.charFolders ? ((S.info.get(keys[i]) || {}).char || '').replace(/[\\/:*?"<>|]/g, '').trim() : '';
+        const name = (who ? who + '/' : '') + outName(keys[i], r.ext, used, who);
         zip.file(name, r.bytes, { binary: true, compression: 'STORE' });
         done.push({ name, sr: r.sr, ch: r.ch, kbps: r.kbps, n: r.n, matched: r.matched, ext: r.ext });
         await sleep(0);
@@ -3517,6 +3849,7 @@ registerProcessor('dub-tap', DubTap);
     $('streamerOn').checked = s.streamer;
     $('alignMode').value = s.alignMode;
     renderLatency();
+    renderScript();
     $('fmt').value = s.fmt;
     $('cSr').value = String(s.cSr);
     $('cCh').value = String(s.cCh);
@@ -3597,6 +3930,46 @@ registerProcessor('dub-tap', DubTap);
       saveInfo(); renderTags(); updateList();
     };
     $('bStRedo').addEventListener('click', () => markCue('redo'));
+    $('bLineT').addEventListener('click', () => {
+      const open = $('lineRow').hidden;
+      $('lineRow').hidden = !open;
+      $('bLineT').setAttribute('aria-expanded', String(open));
+      if (open) $('cueLine').focus();
+    });
+    $('cueLine').addEventListener('input', (e) => {
+      if (!CUR.key) return;
+      const inf = cueInfo(CUR.key);
+      inf.line = e.target.value.trim();
+      inf.lineFromAsr = !!inf.asrText && inf.line === inf.asrText;
+      saveInfo(); rhythmoCache.clear(); renderLine(); renderScript(); updateList(); drawLanes();
+    });
+    $('cueChar').addEventListener('input', (e) => { if (!CUR.key) return; cueInfo(CUR.key).char = e.target.value.trim(); saveInfo(); renderLine(); renderScript(); updateList(); });
+    $('cueChar').addEventListener('change', () => { refreshCharFilter(); updateList(); });
+    $('pickScript').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      if (!S.keys.length) { toast('Load your originals first, then import the script.'); return; }
+      try {
+        const res = applyScript(await f.text());
+        afterScriptChange();
+        toast(res.n ? `Added ${res.n} line${res.n === 1 ? '' : 's'}${res.unmatched ? `. ${res.unmatched} row${res.unmatched === 1 ? '' : 's'} didn’t match a file name` : ''}.` : 'No rows matched your file names. Check the first column.');
+      } catch (err) { toast('That file couldn’t be read (' + (err.message || err) + ').'); }
+    });
+    $('bPasteLines').addEventListener('click', () => {
+      const lines = $('pasteLines').value.split(/\r?\n/).map((l) => l.trim());
+      while (lines.length && !lines[lines.length - 1]) lines.pop();
+      if (!lines.length) { toast('Paste one line per cue first.'); return; }
+      let n = 0;
+      lines.forEach((l, i) => { const k = S.keys[i]; if (!k || !l) return; const inf = cueInfo(k); inf.line = l; inf.lineFromAsr = false; n++; });
+      saveInfo(); afterScriptChange();
+      toast(`Added ${n} line${n === 1 ? '' : 's'}${lines.length > S.keys.length ? `. ${lines.length - S.keys.length} more lines than cues were left out` : ''}.`);
+    });
+    $('rhythmo').addEventListener('change', (e) => { S.settings.rhythmo = e.target.checked; saveMeta(true); renderLine(); drawLanes(); });
+    $('charFolders').addEventListener('change', (e) => { S.settings.charFolders = e.target.checked; saveMeta(true); });
+    $('bAsr').addEventListener('click', () => transcribe(S.keys.slice()));
+    $('bAsrOne').addEventListener('click', () => { if (CUR.key) transcribe([CUR.key]); });
+    $('bAsrStop').addEventListener('click', stopTranscribe);
     $('bStOk').addEventListener('click', () => markCue('ok'));
     $('bNoteT').addEventListener('click', () => {
       const open = $('noteRow').hidden;
@@ -3723,7 +4096,7 @@ registerProcessor('dub-tap', DubTap);
     renderStorage();
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (_) { /* ignore */ }
     window.__dubBooth = {
-      A, S, CUR, getCue, renderComp, cutRange, addClip, splitClipAt, takeSpan, clipStart, clipEnd, tauOf, undoEdit, bestShift, stretchAudio, probeMp3, buildInfoFrame, crc16, resample,
+      A, S, CUR, getCue, renderComp, cutRange, addClip, splitClipAt, takeSpan, clipStart, clipEnd, tauOf, undoEdit, bestShift, stretchAudio, parseTable, applyScript, spreadWords, speechSpans, wordsOf, probeMp3, buildInfoFrame, crc16, resample,
       get lastExport() { return lastExport; },
     };
   }
