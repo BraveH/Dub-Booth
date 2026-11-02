@@ -1323,7 +1323,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
 
   // ---------- audio engine ----------
   const A = {
-    ctx: null, out: null, stream: null, src: null, tap: null, sp: null, legacy: false,
+    ctx: null, out: null, stream: null, src: null, tap: null, sp: null, legacy: false, wired: null,
     spCount: 0, spAnchor: Infinity, rec: null, play: null, srcs: [], peak: 0, raf: 0, micErr: '',
   };
 
@@ -1378,53 +1378,130 @@ registerProcessor('dub-tap', DubTap);
     if (n === 'NotReadableError') return 'The microphone is busy in another app. Close that app, then try again.';
     return 'The microphone couldn’t start (' + ((e && e.message) || n || 'unknown error') + ').';
   }
-  async function makeCtx() {
+  // Waits for an audio promise, but never longer than ms (resolves true if it settled in time).
+  // On iPhone, resume() and addModule() can stay pending forever, notably in a Home Screen app.
+  // Awaiting them without a limit used to freeze the red button for good.
+  function settle(p, ms) {
+    return new Promise((res) => {
+      const t = setTimeout(() => res(false), ms);
+      Promise.resolve(p).then(() => { clearTimeout(t); res(true); }, () => { clearTimeout(t); res(false); });
+    });
+  }
+  function makeCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); } catch (_) { A.ctx = new AC(); }
     A.out = A.ctx.createGain();
     A.out.connect(A.ctx.destination);
-    await resumeCtx();
+    CUR.takeBuf = null; CUR.takeBufKey = '';
+    return A.ctx;
   }
-  async function resumeCtx() {
-    if (A.ctx && A.ctx.state !== 'running') { try { await A.ctx.resume(); } catch (_) { /* ignore */ } }
+  function dropCtx() {
+    const c = A.ctx;
+    if (!c) return;
+    stopPlayback();
+    unwireMic();
+    A.ctx = null; A.out = null;
+    try { const p = c.close(); if (p && p.catch) p.catch(() => {}); } catch (_) { /* ignore */ }
   }
-  // Creates the audio context; with withMic, also asks for the microphone (creating the context after
-  // the mic is granted avoids sample-rate glitches on iPhone).
-  async function ensureAudio(withMic) {
-    if (withMic && !A.stream) {
-      const why = micUnavailableReason();
-      if (why) { A.micErr = why; if (!A.ctx) await makeCtx(); renderStatus(); return false; }
-      let stream;
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() }); }
-      catch (e) { A.micErr = micErrorText(e); if (!A.ctx) await makeCtx(); renderStatus(); return false; }
-      if (A.ctx) { stopPlayback(); try { await A.ctx.close(); } catch (_) { /* ignore */ } A.ctx = null; }
-      A.stream = stream; A.micErr = '';
-      await makeCtx();
-      await wireMic();
-      wakeLock();
-      renderStatus();
-      return true;
+  // Asks the context to start (resume() is called right away, before the first await) and waits a
+  // moment for it. True if it's running.
+  async function resumeCtx(ms = 1500) {
+    const c = A.ctx;
+    if (!c) return false;
+    if (c.state !== 'running') {
+      let p = null;
+      try { p = c.resume(); } catch (_) { /* ignore */ }
+      await settle(p, ms);
     }
-    if (!A.ctx) await makeCtx();
-    await resumeCtx();
-    return !!A.stream;
+    return A.ctx === c && c.state === 'running';
   }
+  // Gets a running audio context with the microphone wired in. Call it at the very start of a tap
+  // handler, before any await: iPhone only lets audio start from inside a tap. A context that isn't
+  // running by then (made after the microphone prompt, or stalled after the app was in the
+  // background) is replaced with a fresh one made inside the tap, because in a Home Screen app such a
+  // context can ignore resume() for good.
+  let starting = null;
+  function startAudio() {
+    if (starting) return starting;
+    const c0 = A.ctx;
+    if (c0 && c0.state === 'running') {
+      if (!A.stream || A.wired === c0) return Promise.resolve(true);
+      starting = wireMic().then(() => A.ctx === c0 && c0.state === 'running' && A.wired === c0);
+    } else {
+      dropCtx();
+      const c = makeCtx();
+      starting = (async () => {
+        const ok = await resumeCtx();
+        if (A.stream && A.ctx === c) await wireMic();
+        return ok && A.ctx === c && c.state === 'running' && (!A.stream || A.wired === c);
+      })();
+    }
+    const p = starting = starting.catch((e) => { console.warn('audio start', e); return false; });
+    p.then(() => { if (starting === p) starting = null; }, () => { if (starting === p) starting = null; });
+    return p;
+  }
+  // Asks for the microphone, then sets up a context for it (creating the context after the mic is
+  // granted avoids sample-rate glitches on iPhone).
+  let micAsk = 0;
+  async function enableMic() {
+    const why = micUnavailableReason();
+    if (why) { A.micErr = why; renderStatus(); return false; }
+    const ask = ++micAsk;
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() }); }
+    catch (e) { if (ask === micAsk && !A.stream) { A.micErr = micErrorText(e); renderStatus(); } return false; }
+    if (ask !== micAsk || A.stream) { stream.getTracks().forEach((tr) => tr.stop()); return !!A.stream; }
+    A.stream = stream; A.micErr = '';
+    stream.getAudioTracks().forEach((tr) => tr.addEventListener('ended', () => {
+      if (A.stream !== stream) return;
+      if (A.rec) stopRecording();
+      A.stream = null; A.micErr = 'The microphone was disconnected. Tap the red button to turn it on again.';
+      renderStatus(); renderButtons();
+    }));
+    dropCtx();
+    makeCtx();
+    // We're outside the tap now, so the context may not start. If it doesn't, the next tap on the
+    // red button replaces it (see startAudio), so don't wire the mic into one that isn't running.
+    try { if (await resumeCtx(800)) await wireMic(); } catch (e) { console.warn('mic setup', e); }
+    wakeLock();
+    renderStatus();
+    return true;
+  }
+  function audioStuckText() {
+    return 'The audio didn’t start. Tap again to retry. If it keeps happening, close Dub Booth completely and open it again.';
+  }
+  function unwireMic() {
+    if (A.tap) { A.tap.port.onmessage = null; try { A.tap.disconnect(); } catch (_) { /* ignore */ } }
+    if (A.sp) { A.sp.onaudioprocess = null; try { A.sp.disconnect(); } catch (_) { /* ignore */ } }
+    if (A.src) { try { A.src.disconnect(); } catch (_) { /* ignore */ } }
+    A.src = null; A.tap = null; A.sp = null; A.legacy = false; A.wired = null;
+  }
+  let wireSeq = 0;
   async function wireMic() {
-    const ctx = A.ctx;
-    A.src = ctx.createMediaStreamSource(A.stream);
-    A.tap = null; A.sp = null; A.legacy = false;
+    const ctx = A.ctx, stream = A.stream;
+    if (!ctx || !stream) return;
+    const w = ++wireSeq;
+    unwireMic();
+    const src = ctx.createMediaStreamSource(stream);
+    let tap = null;
     if (!FORCE_LEGACY && ctx.audioWorklet && window.AudioWorkletNode) {
       try {
-        const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
-        await ctx.audioWorklet.addModule(url);
-        URL.revokeObjectURL(url);
-        A.tap = new AudioWorkletNode(ctx, 'dub-tap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit' });
-        A.tap.port.onmessage = onTapMsg;
-        A.src.connect(A.tap);
-        A.tap.connect(ctx.destination);
-      } catch (e) { console.warn('AudioWorklet unavailable, using ScriptProcessor', e); A.tap = null; }
+        if (!ctx.dubTapModule) {
+          const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+          ctx.dubTapModule = ctx.audioWorklet.addModule(url);
+          ctx.dubTapModule.then(() => URL.revokeObjectURL(url), () => URL.revokeObjectURL(url));
+        }
+        const loaded = await settle(ctx.dubTapModule, 3000);
+        if (A.ctx !== ctx || A.stream !== stream || w !== wireSeq) return; // set up again meanwhile
+        if (!loaded) throw new Error('the worklet module didn’t load in time');
+        tap = new AudioWorkletNode(ctx, 'dub-tap', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit' });
+        tap.port.onmessage = onTapMsg;
+        src.connect(tap);
+        tap.connect(ctx.destination);
+      } catch (e) { console.warn('AudioWorklet unavailable, using ScriptProcessor', e); tap = null; }
     }
-    if (!A.tap) {
+    A.src = src; A.tap = tap; A.sp = null; A.legacy = false;
+    if (!tap) {
       // Fallback: ScriptProcessor. Frames are counted; the clock anchor is the earliest estimate seen.
       A.legacy = true;
       const N = 2048;
@@ -1443,14 +1520,10 @@ registerProcessor('dub-tap', DubTap);
         if (r && r.capturing) { const c = { count: A.spCount, data: new Float32Array(inp) }; r.chunks.push(c); liveEnv(r, c); }
         A.spCount += n;
       };
-      A.src.connect(A.sp);
+      src.connect(A.sp);
       A.sp.connect(ctx.destination);
     }
-    A.stream.getAudioTracks().forEach((tr) => tr.addEventListener('ended', () => {
-      if (A.rec) stopRecording();
-      A.stream = null; A.micErr = 'The microphone was disconnected. Tap the red button to turn it on again.';
-      renderStatus(); renderButtons();
-    }));
+    A.wired = ctx;
   }
   function onTapMsg(e) {
     const d = e.data;
@@ -1488,24 +1561,32 @@ registerProcessor('dub-tap', DubTap);
   }
 
   // ---------- recording ----------
+  // Set while a tap on the red button is still starting things up, so taps don't pile up. Each step
+  // has a time limit, and after 8 s another tap is let through anyway, so the button can't lock up.
+  let recBusy = 0;
   async function onRec() {
     if (A.rec) { stopRecording(); return; }
     if (!S.keys.length) return;
-    if (!A.stream) {
-      const ok = await ensureAudio(true);
-      renderButtons();
-      if (ok) setStatus(readyText());
-      return;
-    }
-    await record();
+    if (recBusy && Date.now() - recBusy < 8000) return;
+    const mine = recBusy = Date.now();
+    try {
+      if (!A.stream) {
+        const ok = await enableMic();
+        renderButtons();
+        if (ok) setStatus(readyText());
+        return;
+      }
+      await record();
+    } finally { if (recBusy === mine) recBusy = 0; }
   }
   async function record() {
-    await resumeCtx();
-    stopPlayback();
     const key = CUR.key;
     if (!key) return;
+    stopPlayback();
+    const started = startAudio(); // first thing, while still inside the tap
     let g;
     try { g = await getOriginal(key); } catch (e) { toast(e.message); return; }
+    if (!(await started)) { setStatus(audioStuckText(), 'err'); return; }
     if (A.rec || !A.stream) return;
     const ctx = A.ctx, st = S.settings, now = ctx.currentTime;
     const over = st.mode === 'over';
@@ -1644,10 +1725,11 @@ registerProcessor('dub-tap', DubTap);
     if (A.play && A.play.kind === kind) { stopPlayback(); return; }
     const key = CUR.key;
     if (!key) return;
-    await ensureAudio(false);
     stopPlayback();
+    const started = startAudio(); // first thing, while still inside the tap
     let g;
     try { g = await getOriginal(key); } catch (e) { toast(e.message); return; }
+    if (!(await started)) { toast(audioStuckText()); return; }
     let tb = null;
     if (kind !== 'orig') {
       const t = await getTake(key);
